@@ -1,0 +1,13 @@
+[package]
+name = "server"
+version = "0.1.0"
+authors = ["Coleman McFarland <coleman.mcfarland@gmail.com>"]
+
+[dependencies]
+sled = "*" 
+rocket = "*"
+rocket_codegen = "*"
+serde_derive = "*"
+serde = "*"
+maud = { version = "*", features = ["rocket"] }
+tempdir = "*"

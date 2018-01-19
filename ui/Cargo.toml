@@ -1,0 +1,18 @@
+[package]
+name = "ui"
+version = "0.1.0"
+authors = ["Coleman McFarland <coleman.mcfarland@gmail.com>"]
+
+
+[dependencies]
+strum = "0.8.0"
+strum_macros = "0.8.0"
+serde = "1"
+serde_derive = "1"
+yew = {path = "../../yew"}
+stdweb = "0.3"
+
+[[bin]]
+name = "ui"
+path = "src/main.rs"
+kind = ["bin", "proc-macro"]
