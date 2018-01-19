@@ -1,2 +1,10 @@
+# build output
 target
+
+# editor metadata
 .idea
+.vscode
+
+# sled db files
+*.db*
+
