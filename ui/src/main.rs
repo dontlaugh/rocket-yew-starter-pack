@@ -1,4 +1,5 @@
 #![recursion_limit="128"]
+#![feature(type_ascription)]
 
 extern crate strum;
 #[macro_use]
@@ -7,13 +8,16 @@ extern crate strum_macros;
 extern crate serde_derive;
 
 #[macro_use]
+extern crate serde_json;
+
+#[macro_use]
 extern crate yew;
 
 use strum::IntoEnumIterator;
 
 use yew::format::Json;
 use yew::services::storage::{StorageService, Area};
-use yew::services::fetch::FetchService;
+use yew::services::fetch::{FetchService, Request, Response}; 
 use yew::html::*;
 use yew::prelude::*;
 
@@ -21,7 +25,7 @@ const KEY: &'static str = "yew.todomvc.self";
 
 struct Context {
     storage: StorageService,
-    api: TodoService,
+    backend: TodoService,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -81,6 +85,21 @@ impl Component<Context> for Model {
                 };
                 self.entries.push(entry);
                 self.value = "".to_string();
+                // build req
+                let req = Request::post("http://localhost:8000/task")
+                    .header("Content-Type", "application/json")
+                    .body(Json(&json!({"description":"hello", "completed": false})))
+                    .expect("could not build request");
+                // http time
+                context.backend.api.fetch(req, |resp| {
+                    if resp.status().is_success() {
+                        println!("success");
+                        Msg::Nope
+                    } else {
+                        println!("fail");
+                        Msg::Nope
+                    }
+                });
             }
             Msg::Edit(idx) => {
                 let edit_value = self.edit_value.clone();
@@ -229,7 +248,7 @@ fn main() {
     yew::initialize();
     let context = Context {
         storage: StorageService::new(Area::Local),
-        api: TodoService::new(),
+        backend: TodoService::new(),
     };
     let app: App<_, Model> = App::new(context);
     app.mount_to_body();

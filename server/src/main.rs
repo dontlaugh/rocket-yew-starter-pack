@@ -42,10 +42,11 @@ fn main() {
 
 #[get("/")]
 fn index(db: State<Arc<sled::Tree>>) -> Markup {
+    // maud macro
     html! { 
-        // yew requires body for rendering
         link rel="stylesheet" href="static/styles.css" {}
         body {}
+        // yew-generated javascript attaches to <body>
         script src=("static/ui.js") {}
     }
 }
@@ -58,7 +59,8 @@ fn static_file(path: PathBuf) -> Option<NamedFile> {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Task {
-    text: String
+    description: String,
+    completed: bool,
 }
 
 #[post("/task", data = "<task>")]
