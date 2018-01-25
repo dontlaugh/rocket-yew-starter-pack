@@ -9,14 +9,15 @@
 
 extern crate rocket;
 extern crate sled;
-
 extern crate maud;
 
 
 use std::sync::{Arc, Mutex};
-use rocket::State;
+use std::path::{Path, PathBuf};
 
 use maud::{html, Markup};
+use rocket::State;
+use rocket::response::NamedFile;
 
 
 fn main() {
@@ -24,7 +25,7 @@ fn main() {
     let tree = sled::Config::default().path(path).tree();
     let db_arc = Arc::new(tree);
 
-    let routes = routes![index];
+    let routes = routes![index, static_file];
     rocket::ignite().mount("/", routes).manage(db_arc).launch();
 }
 
@@ -32,7 +33,14 @@ fn main() {
 #[get("/")]
 fn index(db: State<Arc<sled::Tree>>) -> Markup {
     html! { 
-        script src=("ui.js") {}
+        // yew requires body for rendering
+        body {}
+        script src=("static/ui.js") {}
     }
 }
 
+
+#[get("/static/<path..>")]
+fn static_file(path: PathBuf) -> Option<NamedFile> {
+    NamedFile::open(Path::new("static/").join(path)).ok()
+}
