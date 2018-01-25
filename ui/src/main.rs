@@ -17,7 +17,7 @@ use strum::IntoEnumIterator;
 
 use yew::format::Json;
 use yew::services::storage::{StorageService, Area};
-use yew::services::fetch::{FetchService, Request, Response}; 
+use yew::services::fetch::{FetchService, Request, Response, StatusCode};
 use yew::html::*;
 use yew::prelude::*;
 
@@ -91,15 +91,16 @@ impl Component<Context> for Model {
                     .body(Json(&json!({"description":"hello", "completed": false})))
                     .expect("could not build request");
                 // http time
-                context.backend.api.fetch(req, |resp| {
-                    if resp.status().is_success() {
+                context.backend.api.fetch(req, move |resp: Response<Msg>| {
+                    let code: StatusCode = resp.status();
+                    if code.is_success() {
                         println!("success");
                         Msg::Nope
                     } else {
                         println!("fail");
                         Msg::Nope
                     }
-                });
+                }: Callback<Response<Msg>>);
             }
             Msg::Edit(idx) => {
                 let edit_value = self.edit_value.clone();
