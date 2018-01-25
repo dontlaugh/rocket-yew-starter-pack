@@ -11,6 +11,7 @@ serde = "1"
 serde_derive = "1"
 # I think TOML wants the { ... } inline map to be on a single line
 yew = { git = "https://github.com/DenisKolodin/yew.git", rev = "f1dcb7234c4933d2daa170dd513a921451ee641e" }
+#yew = "0.3.0"
 stdweb = "0.3"
 
 [[bin]]

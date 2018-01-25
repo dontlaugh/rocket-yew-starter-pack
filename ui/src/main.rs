@@ -13,6 +13,7 @@ use strum::IntoEnumIterator;
 
 use yew::format::Json;
 use yew::services::storage::{StorageService, Area};
+use yew::services::fetch::FetchService;
 use yew::html::*;
 use yew::prelude::*;
 
@@ -20,6 +21,7 @@ const KEY: &'static str = "yew.todomvc.self";
 
 struct Context {
     storage: StorageService,
+    api: TodoService,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -55,6 +57,7 @@ impl Component<Context> for Model {
     type Msg = Msg;
     type Properties = ();
 
+    /// When is create called?
     fn create(context: &mut Env<Context, Self>) -> Self {
         if let Json(Ok(restored_model)) = context.storage.restore(KEY) {
             restored_model
@@ -226,10 +229,23 @@ fn main() {
     yew::initialize();
     let context = Context {
         storage: StorageService::new(Area::Local),
+        api: TodoService::new(),
     };
     let app: App<_, Model> = App::new(context);
     app.mount_to_body();
     yew::run_loop();
+}
+
+pub struct TodoService {
+    api: FetchService,
+}
+
+impl TodoService {
+    pub fn new() -> Self {
+        Self {
+            api: FetchService::new(),
+        }
+    }
 }
 
 #[derive(EnumIter, ToString, Clone, PartialEq)]
