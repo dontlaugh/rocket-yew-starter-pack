@@ -7,6 +7,7 @@ authors = ["Coleman McFarland <coleman.mcfarland@gmail.com>"]
 sled = "*" 
 rocket = "*"
 rocket_codegen = "*"
+rocket_contrib = "*"
 serde_derive = "*"
 serde = "*"
 maud = { version = "*", features = ["rocket"] }

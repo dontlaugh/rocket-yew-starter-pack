@@ -8,16 +8,26 @@
 #![feature(proc_macro)]
 
 extern crate rocket;
+extern crate rocket_contrib;
 extern crate sled;
 extern crate maud;
+
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 
 
 use std::sync::{Arc, Mutex};
 use std::path::{Path, PathBuf};
+use serde::{Serialize};
+
 
 use maud::{html, Markup};
 use rocket::State;
+use rocket::response::status;
 use rocket::response::NamedFile;
+
+use rocket_contrib::Json;
 
 
 fn main() {
@@ -44,4 +54,18 @@ fn index(db: State<Arc<sled::Tree>>) -> Markup {
 #[get("/static/<path..>")]
 fn static_file(path: PathBuf) -> Option<NamedFile> {
     NamedFile::open(Path::new("static/").join(path)).ok()
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Task {
+    text: String
+}
+
+#[post("/task", data = "<task>")]
+fn create_task(
+    db: State<Arc<sled::Tree>>, 
+    task: Json<Task>) -> status::Accepted<String> {
+    println!("got a task {:?}", task);
+
+    status::Accepted(Some(format!("success")))
 }
