@@ -34,6 +34,7 @@ fn main() {
 fn index(db: State<Arc<sled::Tree>>) -> Markup {
     html! { 
         // yew requires body for rendering
+        link rel="stylesheet" href="static/styles.css" {}
         body {}
         script src=("static/ui.js") {}
     }

@@ -1,3 +1,4 @@
 
-# don't check in generated js
+# don't check in static assets
 *.js
+*.css
