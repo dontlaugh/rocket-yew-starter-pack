@@ -86,12 +86,9 @@ impl Component<Context> for Model {
                 self.entries.push(entry);
                 self.value = "".to_string();
                 // build req
-                let req = Request::post("http://localhost:8000/task")
-                    .header("Content-Type", "application/json")
-                    .body(Json(&json!({"description":"hello", "completed": false})))
-                    .expect("could not build request");
+
                 // http time
-                context.backend.api.fetch(req, move |resp: Response<Msg>| {
+                let cb = context.send_back(|resp: Response<Json<Result<String, ()>>>| {
                     let code: StatusCode = resp.status();
                     if code.is_success() {
                         println!("success");
@@ -100,7 +97,13 @@ impl Component<Context> for Model {
                         println!("fail");
                         Msg::Nope
                     }
-                }: Callback<Response<Msg>>);
+                });
+                let body = &json!({"description":"hello", "completed": false});
+                let req = Request::post("http://localhost:8000/task")
+                    .header("Content-Type", "application/json")
+                    .body(Json(body))
+                    .expect("could not build request");
+                context.backend.api.fetch(req, cb);
             }
             Msg::Edit(idx) => {
                 let edit_value = self.edit_value.clone();

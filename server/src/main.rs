@@ -35,10 +35,9 @@ fn main() {
     let tree = sled::Config::default().path(path).tree();
     let db_arc = Arc::new(tree);
 
-    let routes = routes![index, static_file];
+    let routes = routes![index, static_file, ugly_hack, create_task];
     rocket::ignite().mount("/", routes).manage(db_arc).launch();
 }
-
 
 #[get("/")]
 fn index(db: State<Arc<sled::Tree>>) -> Markup {
@@ -51,19 +50,25 @@ fn index(db: State<Arc<sled::Tree>>) -> Markup {
     }
 }
 
-
 #[get("/static/<path..>")]
 fn static_file(path: PathBuf) -> Option<NamedFile> {
     NamedFile::open(Path::new("static/").join(path)).ok()
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Task {
-    description: String,
-    completed: bool,
+// TODO: remove this when we figure out how to change the native Rust WebAssembly's generated
+// JavaScript code to point at "static/" prefix.
+#[get("/ui.wasm")]
+fn ugly_hack() -> Option<NamedFile> {
+    NamedFile::open(Path::new("static/ui.wasm")).ok()
 }
 
-#[post("/task", data = "<task>")]
+#[derive(Serialize, Deserialize, Debug)]
+struct Task {
+    completed: bool,
+    description: String,
+}
+
+#[post("/task", format = "application/json", data = "<task>")]
 fn create_task(
     db: State<Arc<sled::Tree>>, 
     task: Json<Task>) -> status::Accepted<String> {

@@ -1,8 +1,10 @@
 #!/bin/bash
 
+set -e
+
 echo "building ui"
 pushd ui
-cargo web build --release
+cargo web build --release --target-webasm
 popd
 echo "ui build complete"
 
