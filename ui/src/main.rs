@@ -40,6 +40,7 @@ struct Model {
 struct Entry {
     description: String,
     completed: bool,
+    // When editing true, set "editing" class, also li becomes input field
     editing: bool,
 }
 
@@ -61,7 +62,6 @@ impl Component<Context> for Model {
     type Msg = Msg;
     type Properties = ();
 
-    /// When is create called?
     fn create(context: &mut Env<Context, Self>) -> Self {
         if let Json(Ok(restored_model)) = context.storage.restore(KEY) {
             restored_model
@@ -84,10 +84,8 @@ impl Component<Context> for Model {
                     editing: false,
                 };
                 self.entries.push(entry);
+                // TODO: get index here to send to backend
                 self.value = "".to_string();
-                // build req
-
-                // http time
                 let cb = context.send_back(|resp: Response<Json<Result<String, ()>>>| {
                     let code: StatusCode = resp.status();
                     if code.is_success() {
@@ -151,8 +149,8 @@ impl Renderable<Context, Model> for Model {
             <div class="todomvc-wrapper",>
                 <section class="todoapp",>
                     <header class="header",>
-                        <h1>{ "todos" }</h1>
-                        { self.view_input() }
+                        <h1>{ "todos!" }</h1>
+                        { self.view_input() } // make new thing
                     </header>
                     <section class="main",>
                         <input class="toggle-all", type="checkbox", checked=self.is_all_completed(), onclick=|_| Msg::ToggleAll, />
