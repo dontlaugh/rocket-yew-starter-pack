@@ -40,7 +40,7 @@ fn main() {
 }
 
 fn all_routes() -> Vec<rocket::Route> {
-    routes![index, static_file, ugly_hack, create_task, get_task]
+    routes![index, static_file, ugly_hack, create_task, get_task, get_tasks]
 }
 
 #[get("/")]
@@ -89,6 +89,20 @@ fn create_task(db: State<Arc<sled::Tree>>, task: Json<Task>) -> status::Accepted
     let encoded: Vec<u8> = serialize(&task.0, Infinite).unwrap();
     db.set(new_key, encoded);
     status::Accepted(Some(format!("success")))
+}
+
+/// Return all tasks or an empty Vec, which is valid.
+#[get("/tasks")]
+fn get_tasks(db: State<Arc<sled::Tree>>) -> Json<Vec<Task>> {
+
+    let mut results: Vec<Task> = Vec::new();
+
+    for (_, v) in db.iter() {
+        let decoded: Task = deserialize(&v[..]).expect("could not deserialize Task");
+        results.push(decoded);
+    }
+
+    Json(results)
 }
 
 #[get("/task/<id>")]
@@ -151,7 +165,19 @@ fn test_post_get() {
     let req = c.get("/task/1");
     let bod = req.dispatch().body_bytes().unwrap();
     let decoded: Task = serde_json::from_slice(&bod[..]).expect("not a valid task");
-    assert_eq!(&decoded.description, "baz");
+    assert_eq!(decoded.description, "baz");
     assert_eq!(decoded.completed, true);
+
+    // now fetch both tasks from /tasks
+    let req = c.get("/tasks");
+    let bod = req.dispatch().body_bytes().unwrap();
+    let tasks: Vec<Task> = serde_json::from_slice(&bod[..]).expect("not an array of Task");
+    assert_eq!(tasks.len(), 2);
+
+    // Test that they come back in the order we expect, with the data we expect.
+    let foo_task = tasks.get(0).unwrap();
+    let baz_task = tasks.get(1).unwrap();
+    assert_eq!(foo_task.description, "foo");
+    assert_eq!(baz_task.description, "baz");
     
 }
