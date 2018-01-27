@@ -39,7 +39,7 @@ struct Model {
     edit_value: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct Entry {
     description: String,
     completed: bool,
@@ -67,6 +67,18 @@ impl Component<Context> for Model {
 
     fn create(context: &mut Env<Context, Self>) -> Self {
         // TODO: fetch from backend here
+        let cb = context.send_back(|resp: Response<Json<Result<Vec<Entry>, ()>>>| {
+            let code: StatusCode = resp.status();
+            if code.is_success() {
+                js! { console.log("success:") };
+                Msg::Nope
+            } else {
+                js! { console.log("fail:") };
+                Msg::Nope
+            }
+        });
+        let req = Request::get("http://localhost:8000/tasks").body(None).unwrap();
+        context.backend.api.fetch(req, cb);
         if let Json(Ok(restored_model)) = context.storage.restore(KEY) {
             restored_model
         } else {

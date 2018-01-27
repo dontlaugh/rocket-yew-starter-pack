@@ -35,12 +35,18 @@ fn main() {
     let path = String::from("data.db");
     let tree = sled::Config::default().path(path).tree();
     let db_arc = Arc::new(tree);
-    let routes = routes![index, static_file, ugly_hack, create_task];
+    let routes = all_routes();
     rocket::ignite().mount("/", routes).manage(db_arc).launch();
 }
 
 fn all_routes() -> Vec<rocket::Route> {
     routes![index, static_file, ugly_hack, create_task, get_task, get_tasks]
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Task {
+    completed: bool,
+    description: String,
 }
 
 #[get("/")]
@@ -66,11 +72,6 @@ fn ugly_hack() -> Option<NamedFile> {
     NamedFile::open(Path::new("static/ui.wasm")).ok()
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Task {
-    completed: bool,
-    description: String,
-}
 
 #[post("/task", format = "application/json", data = "<task>")]
 fn create_task(db: State<Arc<sled::Tree>>, task: Json<Task>) -> status::Accepted<String> {
