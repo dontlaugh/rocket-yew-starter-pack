@@ -10,6 +10,7 @@ rocket = "*"
 rocket_codegen = "*"
 rocket_contrib = "*"
 serde_derive = "*"
+serde_json = "*"
 serde = "*"
 maud = { version = "*", features = ["rocket"] }
 tempdir = "*"
