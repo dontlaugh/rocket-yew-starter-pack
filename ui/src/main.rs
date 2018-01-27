@@ -13,6 +13,9 @@ extern crate serde_json;
 #[macro_use]
 extern crate yew;
 
+#[macro_use]
+extern crate stdweb;
+
 use strum::IntoEnumIterator;
 
 use yew::format::Json;
@@ -63,6 +66,7 @@ impl Component<Context> for Model {
     type Properties = ();
 
     fn create(context: &mut Env<Context, Self>) -> Self {
+        // TODO: fetch from backend here
         if let Json(Ok(restored_model)) = context.storage.restore(KEY) {
             restored_model
         } else {
@@ -110,6 +114,7 @@ impl Component<Context> for Model {
             }
             Msg::Update(val) => {
                 println!("Input: {}", val);
+                js! { console.log("input:", @{val.clone()}) };
                 self.value = val;
             }
             Msg::UpdateEdit(val) => {
@@ -138,6 +143,8 @@ impl Component<Context> for Model {
             }
             Msg::Nope => {}
         }
+        // We are serializable as JSON, and we store ourselves in local storage
+        // on every update.
         context.storage.store(KEY, Json(&self));
         true
     }

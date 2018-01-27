@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Coleman McFarland <coleman.mcfarland@gmail.com>"]
 
 [dependencies]
+bincode = "*"
 sled = "*" 
 rocket = "*"
 rocket_codegen = "*"
