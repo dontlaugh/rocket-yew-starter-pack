@@ -4,7 +4,7 @@ set -e
 
 echo "building ui"
 pushd ui
-cargo web build --release --target-webasm
+cargo web build --release --target=wasm32-unknown-unknown
 popd
 echo "ui build complete"
 
