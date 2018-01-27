@@ -49,6 +49,7 @@ struct Task {
     description: String,
 }
 
+/// This is the entrypoint for our yew client side app.
 #[get("/")]
 fn index(db: State<Arc<sled::Tree>>) -> Markup {
     // maud macro
@@ -60,6 +61,7 @@ fn index(db: State<Arc<sled::Tree>>) -> Markup {
     }
 }
 
+/// Serve static assets from the "static" folder.
 #[get("/static/<path..>")]
 fn static_file(path: PathBuf) -> Option<NamedFile> {
     NamedFile::open(Path::new("static/").join(path)).ok()
@@ -73,6 +75,8 @@ fn ugly_hack() -> Option<NamedFile> {
 }
 
 
+/// Create a new task. The database id will be automatically assigned, and 
+/// should match the client side localstorage index.
 #[post("/task", format = "application/json", data = "<task>")]
 fn create_task(db: State<Arc<sled::Tree>>, task: Json<Task>) -> status::Accepted<String> {
     println!("got a task {:?}", task);
@@ -106,6 +110,7 @@ fn get_tasks(db: State<Arc<sled::Tree>>) -> Json<Vec<Task>> {
     Json(results)
 }
 
+/// Get a task by id.
 #[get("/task/<id>")]
 fn get_task(db: State<Arc<sled::Tree>>, id: u8) -> Option<Json<Task>> {
 
@@ -121,9 +126,10 @@ fn get_task(db: State<Arc<sled::Tree>>, id: u8) -> Option<Json<Task>> {
 }
 
 
-fn test_instance(path: PathBuf) -> rocket::Rocket {
+/// Create an instance of Rocket suitable for tests.
+fn test_instance(db_path: PathBuf) -> rocket::Rocket {
     let tree = sled::Config::default()
-        .path(String::from(path.to_str().unwrap()))
+        .path(String::from(db_path.to_str().unwrap()))
         .tree();
     let db_arc = Arc::new(tree);
     rocket::ignite().mount("/", all_routes()).manage(db_arc)
@@ -180,5 +186,4 @@ fn test_post_get() {
     let baz_task = tasks.get(1).unwrap();
     assert_eq!(foo_task.description, "foo");
     assert_eq!(baz_task.description, "baz");
-    
 }
