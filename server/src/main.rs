@@ -40,13 +40,14 @@ fn main() {
 }
 
 fn all_routes() -> Vec<rocket::Route> {
-    routes![index, static_file, ugly_hack, create_task, get_task, get_tasks]
+    routes![index, static_file, ugly_hack, create_task, get_task, get_tasks, update_all_tasks]
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Task {
     completed: bool,
     description: String,
+    editing: bool,
 }
 
 /// This is the entrypoint for our yew client side app.
@@ -74,9 +75,7 @@ fn ugly_hack() -> Option<NamedFile> {
     NamedFile::open(Path::new("static/ui.wasm")).ok()
 }
 
-
-/// Create a new task. The database id will be automatically assigned, and 
-/// should match the client side localstorage index.
+/// Create a new task. The database id will be automatically assigned.
 #[post("/task", format = "application/json", data = "<task>")]
 fn create_task(db: State<Arc<sled::Tree>>, task: Json<Task>) -> status::Accepted<String> {
     println!("got a task {:?}", task);
@@ -110,6 +109,32 @@ fn get_tasks(db: State<Arc<sled::Tree>>) -> Json<Vec<Task>> {
     Json(results)
 }
 
+/// Update all tasks.
+#[post("/tasks", format = "application/json", data = "<tasks>")]
+fn update_all_tasks(db: State<Arc<sled::Tree>>, tasks: Json<Vec<Task>>) -> status::Accepted<String> {
+
+    // get len
+    let mut count = 0;
+    for (_, _) in db.iter() {
+        count += 1;
+    }
+    
+    // delete everything
+    for k in 0..count {
+        db.del(&vec![k as u8]).expect("delete failed");
+    }
+
+    // update everything
+    for (i, ref v) in tasks.0.into_iter().enumerate() {
+        let encoded: Vec<u8> = serialize(v, Infinite).unwrap();
+        let key = vec![i as u8];
+        db.set(key, encoded)
+    }
+
+    status::Accepted(Some(format!("success")))
+}
+
+
 /// Get a task by id.
 #[get("/task/<id>")]
 fn get_task(db: State<Arc<sled::Tree>>, id: u8) -> Option<Json<Task>> {
@@ -123,6 +148,17 @@ fn get_task(db: State<Arc<sled::Tree>>, id: u8) -> Option<Json<Task>> {
         }
         _ => None
     }
+}
+
+/// Update a task by id.
+#[put("/task/<id>", format = "application/json", data = "<task>")]
+fn update_task(db: State<Arc<sled::Tree>>, id: u8, task: Json<Task>) -> status::Accepted<String> {
+
+    let key = vec![id];
+    let encoded: Vec<u8> = serialize(&task.0, Infinite).unwrap();
+    db.cas(key, None, Some(encoded));
+
+    status::Accepted(Some(format!("format")))
 }
 
 
@@ -149,19 +185,19 @@ fn test_post_get() {
 
     // create a new task with raw json string body
     let req = c.post("/task")
-        .body(r#"{"completed": false, "description": "foo"}"#)
+        .body(r#"{"completed": false, "description": "foo", "editing": false}"#)
         .header(ContentType::JSON);
     let resp = req.dispatch();
     assert_eq!(resp.status(), Status::Accepted);
 
     let req = c.get("/task/0");
     let bod = req.dispatch().body_bytes().unwrap();
-    let decoded: Task = serde_json::from_slice(&bod[..]).expect("not a valid task");
+    let decoded: Task = serde_json::from_slice(&bod[..]).expect("not a valid task; if your model has changed, try deleting your database file");
     assert_eq!(&decoded.description, "foo");
 
 
     // create another task with serde_json's ability to serialize our Task
-    let task = Task{ description: String::from("baz"), completed: true };
+    let task = Task{ description: String::from("baz"), completed: true, editing: false };
     let req = c.post("/task")
         .body(serde_json::to_vec(&task).unwrap())
         .header(ContentType::JSON);

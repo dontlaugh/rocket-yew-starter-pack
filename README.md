@@ -1,6 +1,6 @@
 # Rocket/Yew Starter Pack
 
-**NOTE:** This is a work in progress. I'll probably post it to Reddit when it's done.
+**NOTE:** This is a work in progress.
 
 Rocket is a framework for building web servers in Rust, with a routing API that
 feels like Flask (Python). Yew is a frontend framework for writing front end

@@ -7,7 +7,7 @@ extern crate strum_macros;
 #[macro_use]
 extern crate serde_derive;
 
-#[macro_use]
+#[macro_use]  // json!{ } ??
 extern crate serde_json;
 
 #[macro_use]
@@ -16,11 +16,14 @@ extern crate yew;
 #[macro_use]
 extern crate stdweb;
 
+use std::time::Duration;
+
 use strum::IntoEnumIterator;
 
 use yew::format::Json;
 use yew::services::storage::{StorageService, Area};
 use yew::services::fetch::{FetchService, Request, Response, StatusCode};
+use yew::services::interval::{IntervalService};
 use yew::html::*;
 use yew::prelude::*;
 
@@ -29,6 +32,7 @@ const KEY: &'static str = "yew.todomvc.self";
 struct Context {
     storage: StorageService,
     backend: TodoService,
+    interval: IntervalService,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -39,7 +43,7 @@ struct Model {
     edit_value: String,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 struct Entry {
     description: String,
     completed: bool,
@@ -47,13 +51,16 @@ struct Entry {
     editing: bool,
 }
 
+
 enum Msg {
     Add,
     Edit(usize),
     Update(String),
+    UpdateAll(Vec<Entry>),
     UpdateEdit(String),
     Remove(usize),
     SetFilter(Filter),
+    Tick,
     ToggleAll,
     ToggleEdit(usize),
     Toggle(usize),
@@ -66,22 +73,31 @@ impl Component<Context> for Model {
     type Properties = ();
 
     fn create(context: &mut Env<Context, Self>) -> Self {
-        // TODO: fetch from backend here
-        let cb = context.send_back(|resp: Response<Json<Result<Vec<Entry>, ()>>>| {
-            let code: StatusCode = resp.status();
+        // Start background interval
+        let interval_cb = context.send_back(|_| Msg::Tick);
+        context.interval.spawn(Duration::from_secs(10), interval_cb);
+
+        // fetch the canonical state from the server...
+        let fetch_cb = context.send_back(|resp: Response<Json<Result<Vec<Entry>, ()>>>| {
+            let code: StatusCode = resp.status().clone();
             if code.is_success() {
-                js! { console.log("success:") };
-                Msg::Nope
+                // deserialize results
+                let json = resp.body().clone();
+                let decoded: Vec<Entry> = json.0.clone().unwrap();
+                Msg::UpdateAll(decoded)
             } else {
-                js! { console.log("fail:") };
+                js! { console.log("fetching all tasks failed") };
                 Msg::Nope
             }
         });
         let req = Request::get("http://localhost:8000/tasks").body(None).unwrap();
-        context.backend.api.fetch(req, cb);
+        context.backend.api.fetch(req, fetch_cb);
+
+        // ...but load from local storage until we fire the callback
         if let Json(Ok(restored_model)) = context.storage.restore(KEY) {
             restored_model
         } else {
+            // ... or just make an empty list.
             Model {
                 entries: Vec::new(),
                 filter: Filter::All,
@@ -99,8 +115,7 @@ impl Component<Context> for Model {
                     completed: false,
                     editing: false,
                 };
-                self.entries.push(entry);
-                // TODO: get index here to send to backend
+                self.entries.push(entry.clone());
                 self.value = "".to_string();
                 let cb = context.send_back(|resp: Response<Json<Result<String, ()>>>| {
                     let code: StatusCode = resp.status();
@@ -112,10 +127,10 @@ impl Component<Context> for Model {
                         Msg::Nope
                     }
                 });
-                let body = &json!({"description":"hello", "completed": false});
+                let body = serde_json::to_string(&entry).unwrap();
                 let req = Request::post("http://localhost:8000/task")
                     .header("Content-Type", "application/json")
-                    .body(Json(body))
+                    .body(body)
                     .expect("could not build request");
                 context.backend.api.fetch(req, cb);
             }
@@ -124,10 +139,32 @@ impl Component<Context> for Model {
                 self.complete_edit(idx, edit_value);
                 self.edit_value = "".to_string();
             }
+            Msg::Tick => {
+                let entries = self.entries.clone();
+                let cb = context.send_back(|resp: Response<Json<Result<String, ()>>>| {
+                    let code: StatusCode = resp.status();
+                    if code.is_success() {
+                        js! { console.log("sync success") };
+                        Msg::Nope
+                    } else {
+                        Msg::Nope
+                    }
+                });
+                let body = serde_json::to_string(&entries).unwrap();
+                let req = Request::post("http://localhost:8000/tasks")
+                    .header("Content-Type", "application/json")
+                    .body(body)
+                    .expect("could not build request");
+                context.backend.api.fetch(req, cb);
+            }
             Msg::Update(val) => {
                 println!("Input: {}", val);
                 js! { console.log("input:", @{val.clone()}) };
                 self.value = val;
+            }
+            Msg::UpdateAll(vals) => {
+                js! { console.log("got all tasks:") };
+                self.entries = vals;
             }
             Msg::UpdateEdit(val) => {
                 println!("Input: {}", val);
@@ -270,6 +307,7 @@ fn main() {
     let context = Context {
         storage: StorageService::new(Area::Local),
         backend: TodoService::new(),
+        interval: IntervalService::new(),
     };
     let app: App<_, Model> = App::new(context);
     app.mount_to_body();
