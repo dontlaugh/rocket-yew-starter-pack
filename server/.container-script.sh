@@ -1,8 +1,8 @@
 #!/bin/bash
 
-set -e
+# This script is mounted into our container and executed.
 
-# Meant to be run as an argument to our container
+set -e
 
 # switch to nightly
 rustup default nightly
