@@ -10,12 +10,12 @@ strum_macros = "0.8.0"
 serde = "1"
 serde_derive = "1"
 serde_json = "*"
-yew = { git = "https://github.com/DenisKolodin/yew.git", rev = "02f476d008280033cc7c0355f15754314394e00a" }
-#yew = { git = "https://github.com/machineloop/yew.git", branch = "workaround-fetch-iovec-upstream-issue" }
+yew = { git = "https://github.com/DenisKolodin/yew.git", branch = "master" }  
 stdweb = "0.3"
 
-[replace]
-"iovec:0.1.1" = { git = 'https://github.com/machineloop/iovec', branch = 'wasm-support' }
+# We used to need this
+#[replace]
+#"iovec:0.1.1" = { git = 'https://github.com/machineloop/iovec', branch = 'wasm-support' }
 
 [[bin]]
 name = "ui"
