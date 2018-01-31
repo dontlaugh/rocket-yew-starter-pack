@@ -1,10 +1,16 @@
 # Rocket/Yew Starter Pack
 
+[Rocket](https://rocket.rs) is a framework for building web servers in Rust, 
+with a routing API that feels like Flask (Python). [Yew](https://github.com/DenisKolodin/yew) 
+is a frontend framework for writing front end apps in Rust using cutting-edge 
+(but well-supported) WebAssembly technologies, and with an API inspired by 
+patterns from Elm and React.
 
-Rocket is a framework for building web servers in Rust, with a routing API that
-feels like Flask (Python). Yew is a frontend framework for writing front end
-apps in Rust using cutting-edge (but well-supported) WebAssembly technologies,
-and with an API inspired by patterns from Elm and React.
+This project adapts the [todoMVC example from the yew repo](https://github.com/DenisKolodin/yew/tree/master/examples/todomvc), 
+and periodically syncs local state with a backend Rocket server.
+
+We also include some scripts to demonstrate building the ui and shipping it over
+to the server to serve as static assets.
 
 ## Getting Started
 
