@@ -44,11 +44,11 @@ Docker container.
 
 This project also uses:
 
-* [stdweb](koute/stdweb) and [cargo-web](koute/cargo-web) - core library and 
+* [stdweb](https://github.com/koute/stdweb) and [cargo-web](https://github.com/koute/cargo-web) - core library and 
    tooling that make frameworks like yew possible. You can support koute on Patreon.
-* [maud](lfairy/maud) - html templating 
-* [sled](spacejam/sled) - an embedded, ordered key-value store 
-* [bincode](TyOverby/bincode) - binary encoding for rust types, so we can put
+* [maud](https://github.com/lfairy/maud) - html templating 
+* [sled](https://github.com/spacejam/sled) - an embedded, ordered key-value store 
+* [bincode](https://github.com/TyOverby/bincode) - binary encoding for rust types, so we can put
    stuff in a sled tree
 
 ----
