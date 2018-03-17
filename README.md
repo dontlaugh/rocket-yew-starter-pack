@@ -14,7 +14,8 @@ to the server to serve as static assets.
 
 ## Getting Started
 
-Install rust with `rustup`. You must use nightly rust.
+Install rust with `rustup`. Since we build with `--target=wasm32-unknown-unknown`, 
+you must use nightly rust.
 
 ```
 rustup default nightly
@@ -43,6 +44,8 @@ Docker container.
 
 This project also uses:
 
+* [stdweb](koute/stdweb) and [cargo-web](koute/cargo-web) - core library and 
+   tooling that make frameworks like yew possible. You can support koute on Patreon.
 * [maud](lfairy/maud) - html templating 
 * [sled](spacejam/sled) - an embedded, ordered key-value store 
 * [bincode](TyOverby/bincode) - binary encoding for rust types, so we can put

@@ -4,7 +4,8 @@ set -e
 
 echo "building ui"
 pushd ui
-cargo web build --release --target=wasm32-unknown-unknown
+# our target is set in Web.toml
+cargo web build --release 
 popd
 echo "ui build complete"
 

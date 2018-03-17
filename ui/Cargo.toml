@@ -11,11 +11,9 @@ serde = "1"
 serde_derive = "1"
 serde_json = "*"
 yew = { git = "https://github.com/DenisKolodin/yew.git", branch = "master" }  
-stdweb = "0.3"
+stdweb = "0.4.2"
+failure = "*"
 
-# We used to need this
-#[replace]
-#"iovec:0.1.1" = { git = 'https://github.com/machineloop/iovec', branch = 'wasm-support' }
 
 [[bin]]
 name = "ui"

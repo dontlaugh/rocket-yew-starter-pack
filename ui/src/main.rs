@@ -15,6 +15,7 @@ extern crate yew;
 
 #[macro_use]
 extern crate stdweb;
+extern crate failure;
 
 use std::time::Duration;
 
@@ -72,19 +73,16 @@ impl Component<Context> for Model {
     type Msg = Msg;
     type Properties = ();
 
-    fn create(context: &mut Env<Context, Self>) -> Self {
+    fn create(_: Self::Properties, context: &mut Env<Context, Self>) -> Self {
         // Start background interval
         let interval_cb = context.send_back(|_| Msg::Tick);
         context.interval.spawn(Duration::from_secs(10), interval_cb);
 
         // fetch the canonical state from the server...
-        let fetch_cb = context.send_back(|resp: Response<Json<Result<Vec<Entry>, ()>>>| {
-            let code: StatusCode = resp.status().clone();
-            if code.is_success() {
-                // deserialize results
-                let json = resp.body().clone();
-                let decoded: Vec<Entry> = json.0.clone().unwrap();
-                Msg::UpdateAll(decoded)
+        let fetch_cb = context.send_back(|resp: Response<Json<Result<Vec<Entry>, failure::Error>>>| {
+            let (meta, Json(result)) = resp.into_parts();
+            if meta.status.is_success() {
+                Msg::UpdateAll(result.expect("error retrieving result"))
             } else {
                 js! { console.log("fetching all tasks failed") };
                 Msg::Nope
@@ -117,7 +115,7 @@ impl Component<Context> for Model {
                 };
                 self.entries.push(entry.clone());
                 self.value = "".to_string();
-                let cb = context.send_back(|resp: Response<Json<Result<String, ()>>>| {
+                let cb = context.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
                     let code: StatusCode = resp.status();
                     if code.is_success() {
                         println!("success");
@@ -141,7 +139,7 @@ impl Component<Context> for Model {
             }
             Msg::Tick => {
                 let entries = self.entries.clone();
-                let cb = context.send_back(|resp: Response<Json<Result<String, ()>>>| {
+                let cb = context.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
                     let code: StatusCode = resp.status();
                     if code.is_success() {
                         js! { console.log("sync success") };
