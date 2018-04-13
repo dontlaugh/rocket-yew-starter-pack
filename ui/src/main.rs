@@ -1,4 +1,5 @@
 #![recursion_limit="128"]
+#![feature(proc_macro)]
 #![feature(type_ascription)]
 
 extern crate strum;

@@ -23,17 +23,20 @@ use std::sync::{Arc, Mutex};
 use std::path::{Path, PathBuf};
 use serde::{Serialize};
 
-use bincode::{deserialize, serialize, Infinite};
+use bincode::{deserialize, serialize};
 use maud::{html, Markup};
 use rocket::State;
 use rocket::response::status;
 use rocket::response::NamedFile;
 use rocket_contrib::Json;
+use sled::{ConfigBuilder, Tree};
 
 
 fn main() {
     let path = String::from("data.db");
-    let tree = sled::Config::default().path(path).tree();
+    let conf = sled::ConfigBuilder::new().path(path).build();
+    let tree = Tree::start(conf).unwrap();
+
     let db_arc = Arc::new(tree);
     let routes = all_routes();
     rocket::ignite().mount("/", routes).manage(db_arc).launch();
@@ -82,15 +85,17 @@ fn create_task(db: State<Arc<sled::Tree>>, task: Json<Task>) -> status::Accepted
 
     // scan through our DB to get create an incremented ID.
     let mut count = 0;
-    for (_, _) in db.iter() {
-        count += 1;
+    for item in db.iter() {
+        if item.is_ok() {
+            count += 1;
+        }
     }
 
     // Keys and Values in sled are Vec<u8>
     let new_key = vec![count];
 
     // Our task is the first field (e.g., "0") on Json<Task> Rocket passes us.
-    let encoded: Vec<u8> = serialize(&task.0, Infinite).unwrap();
+    let encoded: Vec<u8> = serialize(&task.0).unwrap();
     db.set(new_key, encoded);
     status::Accepted(Some(format!("success")))
 }
@@ -101,9 +106,14 @@ fn get_tasks(db: State<Arc<sled::Tree>>) -> Json<Vec<Task>> {
 
     let mut results: Vec<Task> = Vec::new();
 
-    for (_, v) in db.iter() {
-        let decoded: Task = deserialize(&v[..]).expect("could not deserialize Task");
-        results.push(decoded);
+    for item in db.iter() {
+        match item {
+            Ok((_, v)) => {
+                let decoded: Task = deserialize(&v[..]).expect("could not deserialize Task");
+                results.push(decoded);
+            }
+            _ => {},
+        }
     }
 
     Json(results)
@@ -115,8 +125,11 @@ fn update_all_tasks(db: State<Arc<sled::Tree>>, tasks: Json<Vec<Task>>) -> statu
 
     // get len
     let mut count = 0;
-    for (_, _) in db.iter() {
-        count += 1;
+    for item in db.iter() {
+        match item {
+            Ok(_) => count += 1,
+            _ => {},
+        }
     }
     
     // delete everything
@@ -126,9 +139,9 @@ fn update_all_tasks(db: State<Arc<sled::Tree>>, tasks: Json<Vec<Task>>) -> statu
 
     // update everything
     for (i, ref v) in tasks.0.into_iter().enumerate() {
-        let encoded: Vec<u8> = serialize(v, Infinite).unwrap();
+        let encoded: Vec<u8> = serialize(v).unwrap();
         let key = vec![i as u8];
-        db.set(key, encoded)
+        db.set(key, encoded);
     }
 
     status::Accepted(Some(format!("success")))
@@ -141,7 +154,7 @@ fn get_task(db: State<Arc<sled::Tree>>, id: u8) -> Option<Json<Task>> {
 
     let val = db.get(&vec![id]);
     match val {
-        Some(db_vec) => {
+        Ok(Some(db_vec)) => {
             let decoded: Task = deserialize(&db_vec[..])
                 .expect("unable to decode Task");
             Some(Json(decoded))
@@ -155,7 +168,7 @@ fn get_task(db: State<Arc<sled::Tree>>, id: u8) -> Option<Json<Task>> {
 fn update_task(db: State<Arc<sled::Tree>>, id: u8, task: Json<Task>) -> status::Accepted<String> {
 
     let key = vec![id];
-    let encoded: Vec<u8> = serialize(&task.0, Infinite).unwrap();
+    let encoded: Vec<u8> = serialize(&task.0).unwrap();
     db.cas(key, None, Some(encoded));
 
     status::Accepted(Some(format!("format")))
@@ -164,9 +177,10 @@ fn update_task(db: State<Arc<sled::Tree>>, id: u8, task: Json<Task>) -> status::
 
 /// Create an instance of Rocket suitable for tests.
 fn test_instance(db_path: PathBuf) -> rocket::Rocket {
-    let tree = sled::Config::default()
+    let conf = sled::ConfigBuilder::new()
         .path(String::from(db_path.to_str().unwrap()))
-        .tree();
+        .build();
+    let tree = Tree::start(conf).unwrap();
     let db_arc = Arc::new(tree);
     rocket::ignite().mount("/", all_routes()).manage(db_arc)
 }

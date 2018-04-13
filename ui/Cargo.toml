@@ -18,4 +18,3 @@ failure = "*"
 [[bin]]
 name = "ui"
 path = "src/main.rs"
-crate-type = ["bin", "proc-macro"]
