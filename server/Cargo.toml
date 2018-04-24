@@ -12,5 +12,5 @@ rocket_contrib = "*"
 serde_derive = "*"
 serde_json = "*"
 serde = "*"
-maud = { git = "https://github.com/anxiousmodernman/maud.git", branch = "121_proc_macro", features = ["rocket"] }
+maud = { git = "https://github.com/lfairy/maud.git", branch = "master", features = ["rocket"] }
 tempdir = "*"
