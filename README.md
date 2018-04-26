@@ -14,8 +14,8 @@ to the server to serve as static assets.
 
 ## Getting Started
 
-Install rust with `rustup`. Since we build with `--target=wasm32-unknown-unknown`, 
-you must use nightly rust.
+Install rust with `rustup`. Since we build with `--target=wasm32-unknown-unknown`, and rely on 
+other [unstable features](https://doc.rust-lang.org/beta/unstable-book/the-unstable-book.html), you must use nightly rust.
 
 ```
 rustup default nightly
