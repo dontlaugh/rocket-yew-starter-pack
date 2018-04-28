@@ -6,6 +6,7 @@
 #![allow(unused_must_use)]
 #![allow(dead_code)]
 #![feature(proc_macro)]
+#![feature(proc_macro_non_items)]
 
 extern crate bincode;
 extern crate rocket;
