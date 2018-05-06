@@ -2,7 +2,7 @@
 
 [Rocket](https://rocket.rs) is a framework for building web servers in Rust, 
 with a routing API that feels like Flask (Python). [Yew](https://github.com/DenisKolodin/yew) 
-is a frontend framework for writing front end apps in Rust using cutting-edge 
+is a front end framework for writing apps in Rust using cutting-edge 
 (but well-supported) WebAssembly technologies, and with an API inspired by 
 patterns from Elm and React.
 
