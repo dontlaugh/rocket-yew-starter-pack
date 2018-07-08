@@ -19,6 +19,7 @@ extern crate stdweb;
 extern crate failure;
 
 use std::time::Duration;
+use stdweb::web::window;
 
 use strum::IntoEnumIterator;
 
@@ -31,18 +32,15 @@ use yew::prelude::*;
 
 const KEY: &'static str = "yew.todomvc.self";
 
-struct Context {
-    storage: StorageService,
-    backend: TodoService,
-    interval: IntervalService,
-}
 
-#[derive(Serialize, Deserialize)]
 struct Model {
     entries: Vec<Entry>,
     filter: Filter,
     value: String,
     edit_value: String,
+    fetch: FetchService,
+    storage: StorageService,
+    link: ComponentLink<Model>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -70,14 +68,15 @@ enum Msg {
     Nope,
 }
 
-impl Component<Context> for Model {
-    type Msg = Msg;
+impl Component for Model {
+    type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, context: &mut Env<Context, Self>) -> Self {
+    fn create(_: Self::Properties, context: ComponentLink<Self>) -> Self {
         // Start background interval
+        let mut interval = IntervalService::new();
         let interval_cb = context.send_back(|_| Msg::Tick);
-        context.interval.spawn(Duration::from_secs(10), interval_cb);
+        let handle = interval.spawn(Duration::from_secs(10), interval_cb);
 
         // fetch the canonical state from the server...
         let fetch_cb = context.send_back(|resp: Response<Json<Result<Vec<Entry>, failure::Error>>>| {
@@ -89,8 +88,11 @@ impl Component<Context> for Model {
                 Msg::Nope
             }
         });
+        let mut fetcher = FetchService::new();
         let req = Request::get("http://localhost:8000/tasks").body(None).unwrap();
-        context.backend.api.fetch(req, fetch_cb);
+
+        // can be canceled with Task::cancel()
+        fetcher.fetch(req, fetch_cb);
 
         // ...but load from local storage until we fire the callback
         if let Json(Ok(restored_model)) = context.storage.restore(KEY) {
@@ -102,11 +104,14 @@ impl Component<Context> for Model {
                 filter: Filter::All,
                 value: "".into(),
                 edit_value: "".into(),
+                fetch: fetcher,
+                storage: StorageService{ storage: window.local_storage() },
+                link: context,
             }
         }
     }
 
-    fn update(&mut self, msg: Self::Msg, context: &mut Env<Context, Self>) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Add => {
                 let entry = Entry {
@@ -116,7 +121,7 @@ impl Component<Context> for Model {
                 };
                 self.entries.push(entry.clone());
                 self.value = "".to_string();
-                let cb = context.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
+                let cb = self.link.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
                     let code: StatusCode = resp.status();
                     if code.is_success() {
                         println!("success");
@@ -131,7 +136,7 @@ impl Component<Context> for Model {
                     .header("Content-Type", "application/json")
                     .body(body)
                     .expect("could not build request");
-                context.backend.api.fetch(req, cb);
+                self.fetch.fetch(req, cb);
             }
             Msg::Edit(idx) => {
                 let edit_value = self.edit_value.clone();
@@ -140,7 +145,7 @@ impl Component<Context> for Model {
             }
             Msg::Tick => {
                 let entries = self.entries.clone();
-                let cb = context.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
+                let cb = self.link.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
                     let code: StatusCode = resp.status();
                     if code.is_success() {
                         js! { console.log("sync success") };
@@ -154,7 +159,7 @@ impl Component<Context> for Model {
                     .header("Content-Type", "application/json")
                     .body(body)
                     .expect("could not build request");
-                context.backend.api.fetch(req, cb);
+                self.fetch.fetch(req, cb);
             }
             Msg::Update(val) => {
                 println!("Input: {}", val);
@@ -193,13 +198,13 @@ impl Component<Context> for Model {
         }
         // We are serializable as JSON, and we store ourselves in local storage
         // on every update.
-        context.storage.store(KEY, Json(&self));
+        self.storage.store(KEY, Json(&self));
         true
     }
 }
 
-impl Renderable<Context, Model> for Model {
-    fn view(&self) -> Html<Context, Self> {
+impl Renderable<Model> for Model {
+    fn view(&self) -> Html<Self> {
         html! {
             <div class="todomvc-wrapper",>
                 <section class="todoapp",>
@@ -237,7 +242,7 @@ impl Renderable<Context, Model> for Model {
 }
 
 impl Model {
-    fn view_filter(&self, filter: Filter) -> Html<Context, Model> {
+    fn view_filter(&self, filter: Filter) -> Html<Model> {
         let flt = filter.clone();
         html! {
             <li>
@@ -250,7 +255,7 @@ impl Model {
         }
     }
 
-    fn view_input(&self) -> Html<Context, Model> {
+    fn view_input(&self) -> Html<Model> {
         html! {
             // You can use standard Rust comments. One line:
             // <li></li>
@@ -258,8 +263,8 @@ impl Model {
                    placeholder="What needs to be done?",
                    value=&self.value,
                    oninput=|e: InputData| Msg::Update(e.value),
-                   onkeypress=|e: KeyData| {
-                       if e.key == "Enter" { Msg::Add } else { Msg::Nope }
+                   onkeypress=|e: KeyPressEvent| {
+                       if e.key() == "Enter" { Msg::Add } else { Msg::Nope }
                    }, />
             /* Or multiline:
             <ul>
@@ -270,7 +275,7 @@ impl Model {
     }
 }
 
-fn view_entry((idx, entry): (usize, &Entry)) -> Html<Context, Model> {
+fn view_entry((idx, entry): (usize, &Entry)) -> Html<Model> {
     html! {
         <li class=if entry.editing == true { "editing" } else { "" },>
             <div class="view",>
@@ -283,7 +288,7 @@ fn view_entry((idx, entry): (usize, &Entry)) -> Html<Context, Model> {
     }
 }
 
-fn view_entry_edit_input((idx, entry): (usize, &Entry)) -> Html<Context, Model> {
+fn view_entry_edit_input((idx, entry): (usize, &Entry)) -> Html<Model> {
     if entry.editing == true {
         html! {
             <input class="edit",
@@ -291,8 +296,8 @@ fn view_entry_edit_input((idx, entry): (usize, &Entry)) -> Html<Context, Model> 
                    value=&entry.description,
                    oninput=|e: InputData| Msg::UpdateEdit(e.value),
                    onblur=move|_| Msg::Edit(idx),
-                   onkeypress=move |e: KeyData| {
-                      if e.key == "Enter" { Msg::Edit(idx) } else { Msg::Nope }
+                   onkeypress=move |e: KeyPressEvent| {
+                      if e.key() == "Enter" { Msg::Edit(idx) } else { Msg::Nope }
                    }, />
         }
     } else {
@@ -303,12 +308,7 @@ fn view_entry_edit_input((idx, entry): (usize, &Entry)) -> Html<Context, Model> 
 
 fn main() {
     yew::initialize();
-    let context = Context {
-        storage: StorageService::new(Area::Local),
-        backend: TodoService::new(),
-        interval: IntervalService::new(),
-    };
-    let app: App<_, Model> = App::new(context);
+    let app: App<Model> = App::new();
     app.mount_to_body();
     yew::run_loop();
 }
