@@ -1,4 +1,4 @@
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 #![feature(proc_macro)]
 #![feature(type_ascription)]
 
@@ -8,7 +8,7 @@ extern crate strum_macros;
 #[macro_use]
 extern crate serde_derive;
 
-#[macro_use]  // json!{ } ??
+#[macro_use] // json!{ } ??
 extern crate serde_json;
 
 #[macro_use]
@@ -24,23 +24,27 @@ use stdweb::web::window;
 use strum::IntoEnumIterator;
 
 use yew::format::Json;
-use yew::services::storage::{StorageService, Area};
-use yew::services::fetch::{FetchService, Request, Response, StatusCode};
-use yew::services::interval::{IntervalService};
 use yew::html::*;
 use yew::prelude::*;
+use yew::services::fetch::{FetchService, Request, Response, StatusCode};
+use yew::services::interval::IntervalService;
+use yew::services::storage::StorageService;
 
 const KEY: &'static str = "yew.todomvc.self";
 
-
 struct Model {
+    data: Data,
+    fetch: FetchService,
+    storage: StorageService,
+    link: ComponentLink<Model>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Data {
     entries: Vec<Entry>,
     filter: Filter,
     value: String,
     edit_value: String,
-    fetch: FetchService,
-    storage: StorageService,
-    link: ComponentLink<Model>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -50,7 +54,6 @@ struct Entry {
     // When editing true, set "editing" class, also li becomes input field
     editing: bool,
 }
-
 
 enum Msg {
     Add,
@@ -79,33 +82,45 @@ impl Component for Model {
         let handle = interval.spawn(Duration::from_secs(10), interval_cb);
 
         // fetch the canonical state from the server...
-        let fetch_cb = context.send_back(|resp: Response<Json<Result<Vec<Entry>, failure::Error>>>| {
-            let (meta, Json(result)) = resp.into_parts();
-            if meta.status.is_success() {
-                Msg::UpdateAll(result.expect("error retrieving result"))
-            } else {
-                js! { console.log("fetching all tasks failed") };
-                Msg::Nope
-            }
-        });
+        //let fetch_cb =
+        //    context.send_back(|resp: Response<Json<Result<Vec<Entry>, failure::Error>>>| {
+        //        let (meta, Json(result)) = resp.into_parts();
+        //        if meta.status.is_success() {
+        //            Msg::UpdateAll(result.expect("error retrieving result"))
+        //        } else {
+        //            js! { console.log("fetching all tasks failed") };
+        //            Msg::Nope
+        //        }
+        //    })
+        let storage = StorageService {
+            storage: window().local_storage(),
+        };
         let mut fetcher = FetchService::new();
-        let req = Request::get("http://localhost:8000/tasks").body(None).unwrap();
+        //let req = Request::get("http://localhost:8000/tasks")
+        //    .body(None)
+        //    .unwrap();
 
-        // can be canceled with Task::cancel()
-        fetcher.fetch(req, fetch_cb);
+        //// can be canceled with Task::cancel()
+        //fetcher.fetch(req, fetch_cb);
 
         // ...but load from local storage until we fire the callback
-        if let Json(Ok(restored_model)) = context.storage.restore(KEY) {
-            restored_model
-        } else {
-            // ... or just make an empty list.
+        if let Json(Ok(restored)) = storage.restore(KEY) {
             Model {
-                entries: Vec::new(),
-                filter: Filter::All,
-                value: "".into(),
-                edit_value: "".into(),
+                data: restored,
                 fetch: fetcher,
-                storage: StorageService{ storage: window.local_storage() },
+                storage: storage,
+                link: context,
+            }
+        } else {
+            Model {
+                data: Data {
+                    entries: Vec::new(),
+                    filter: Filter::All,
+                    value: "".into(),
+                    edit_value: "".into(),
+                },
+                fetch: fetcher,
+                storage: storage,
                 link: context,
             }
         }
@@ -115,22 +130,24 @@ impl Component for Model {
         match msg {
             Msg::Add => {
                 let entry = Entry {
-                    description: self.value.clone(),
+                    description: self.data.value.clone(),
                     completed: false,
                     editing: false,
                 };
-                self.entries.push(entry.clone());
-                self.value = "".to_string();
-                let cb = self.link.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
-                    let code: StatusCode = resp.status();
-                    if code.is_success() {
-                        println!("success");
-                        Msg::Nope
-                    } else {
-                        println!("fail");
-                        Msg::Nope
-                    }
-                });
+                self.data.entries.push(entry.clone());
+                self.data.value = "".to_string();
+                let cb = self.link.send_back(
+                    move |resp: Response<Json<Result<String, failure::Error>>>| {
+                        let code: StatusCode = resp.status();
+                        if code.is_success() {
+                            println!("success");
+                            Msg::Nope
+                        } else {
+                            println!("fail");
+                            Msg::Nope
+                        }
+                    },
+                );
                 let body = serde_json::to_string(&entry).unwrap();
                 let req = Request::post("http://localhost:8000/task")
                     .header("Content-Type", "application/json")
@@ -139,21 +156,23 @@ impl Component for Model {
                 self.fetch.fetch(req, cb);
             }
             Msg::Edit(idx) => {
-                let edit_value = self.edit_value.clone();
+                let edit_value = self.data.edit_value.clone();
                 self.complete_edit(idx, edit_value);
-                self.edit_value = "".to_string();
+                self.data.edit_value = "".to_string();
             }
             Msg::Tick => {
-                let entries = self.entries.clone();
-                let cb = self.link.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
-                    let code: StatusCode = resp.status();
-                    if code.is_success() {
-                        js! { console.log("sync success") };
-                        Msg::Nope
-                    } else {
-                        Msg::Nope
-                    }
-                });
+                let entries = self.data.entries.clone();
+                let cb = self.link.send_back(
+                    |resp: Response<Json<Result<String, failure::Error>>>| {
+                        let code: StatusCode = resp.status();
+                        if code.is_success() {
+                            js! { console.log("sync success") };
+                            Msg::Nope
+                        } else {
+                            Msg::Nope
+                        }
+                    },
+                );
                 let body = serde_json::to_string(&entries).unwrap();
                 let req = Request::post("http://localhost:8000/tasks")
                     .header("Content-Type", "application/json")
@@ -164,24 +183,24 @@ impl Component for Model {
             Msg::Update(val) => {
                 println!("Input: {}", val);
                 js! { console.log("input:", @{val.clone()}) };
-                self.value = val;
+                self.data.value = val;
             }
             Msg::UpdateAll(vals) => {
                 js! { console.log("got all tasks:") };
-                self.entries = vals;
+                self.data.entries = vals;
             }
             Msg::UpdateEdit(val) => {
                 println!("Input: {}", val);
-                self.edit_value = val;
+                self.data.edit_value = val;
             }
             Msg::Remove(idx) => {
                 self.remove(idx);
             }
             Msg::SetFilter(filter) => {
-                self.filter = filter;
+                self.data.filter = filter;
             }
             Msg::ToggleEdit(idx) => {
-                self.edit_value = self.entries[idx].description.clone();
+                self.data.edit_value = self.data.entries[idx].description.clone();
                 self.toggle_edit(idx);
             }
             Msg::ToggleAll => {
@@ -196,9 +215,9 @@ impl Component for Model {
             }
             Msg::Nope => {}
         }
-        // We are serializable as JSON, and we store ourselves in local storage
-        // on every update.
-        self.storage.store(KEY, Json(&self));
+        // Our internal data field is serializable as JSON, and we store commit data
+        // to local storage on every update.
+        self.storage.store(KEY, Json(&self.data));
         true
     }
 }
@@ -215,7 +234,7 @@ impl Renderable<Model> for Model {
                     <section class="main",>
                         <input class="toggle-all", type="checkbox", checked=self.is_all_completed(), onclick=|_| Msg::ToggleAll, />
                         <ul class="todo-list",>
-                            { for self.entries.iter().filter(|e| self.filter.fit(e)).enumerate().map(view_entry) }
+                            { for self.data.entries.iter().filter(|e| self.data.filter.fit(e)).enumerate().map(view_entry) }
                         </ul>
                     </section>
                     <footer class="footer",>
@@ -246,9 +265,9 @@ impl Model {
         let flt = filter.clone();
         html! {
             <li>
-                <a class=if self.filter == flt { "selected" } else { "not-selected" },
+                <a class=if self.data.filter == flt { "selected" } else { "not-selected" },
                    href=&flt,
-                   onclick=move |_| Msg::SetFilter(flt.clone()),>
+                   onclick=|_| Msg::SetFilter(flt.clone()),>
                     { filter }
                 </a>
             </li>
@@ -261,9 +280,9 @@ impl Model {
             // <li></li>
             <input class="new-todo",
                    placeholder="What needs to be done?",
-                   value=&self.value,
-                   oninput=|e: InputData| Msg::Update(e.value),
-                   onkeypress=|e: KeyPressEvent| {
+                   value=&self.data.value,
+                   oninput=|e| Msg::Update(e.value),
+                   onkeypress=|e| {
                        if e.key() == "Enter" { Msg::Add } else { Msg::Nope }
                    }, />
             /* Or multiline:
@@ -279,9 +298,9 @@ fn view_entry((idx, entry): (usize, &Entry)) -> Html<Model> {
     html! {
         <li class=if entry.editing == true { "editing" } else { "" },>
             <div class="view",>
-                <input class="toggle", type="checkbox", checked=entry.completed, onclick=move|_| Msg::Toggle(idx), />
-                <label ondoubleclick=move|_| Msg::ToggleEdit(idx),>{ &entry.description }</label>
-                <button class="destroy", onclick=move |_| Msg::Remove(idx), />
+                <input class="toggle", type="checkbox", checked=entry.completed, onclick=|_| Msg::Toggle(idx), />
+                <label ondoubleclick=|_| Msg::ToggleEdit(idx),>{ &entry.description }</label>
+                <button class="destroy", onclick=|_| Msg::Remove(idx), />
             </div>
             { view_entry_edit_input((idx, &entry)) }
         </li>
@@ -294,9 +313,9 @@ fn view_entry_edit_input((idx, entry): (usize, &Entry)) -> Html<Model> {
             <input class="edit",
                    type="text",
                    value=&entry.description,
-                   oninput=|e: InputData| Msg::UpdateEdit(e.value),
-                   onblur=move|_| Msg::Edit(idx),
-                   onkeypress=move |e: KeyPressEvent| {
+                   oninput=|e| Msg::UpdateEdit(e.value),
+                   onblur=|_| Msg::Edit(idx),
+                   onkeypress=|e| {
                       if e.key() == "Enter" { Msg::Edit(idx) } else { Msg::Nope }
                    }, />
         }
@@ -305,11 +324,10 @@ fn view_entry_edit_input((idx, entry): (usize, &Entry)) -> Html<Model> {
     }
 }
 
-
 fn main() {
     yew::initialize();
-    let app: App<Model> = App::new();
-    app.mount_to_body();
+    // t-t-t-t-turboooofiissshh !!!!!!!!!!
+    App::<Model>::new().mount_to_body();
     yew::run_loop();
 }
 
@@ -325,8 +343,7 @@ impl TodoService {
     }
 }
 
-#[derive(EnumIter, ToString, Clone, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(EnumIter, ToString, Clone, PartialEq, Serialize, Deserialize)]
 enum Filter {
     All,
     Active,
@@ -355,17 +372,21 @@ impl Filter {
 
 impl Model {
     fn total(&self) -> usize {
-        self.entries.len()
+        self.data.entries.len()
     }
 
     fn total_completed(&self) -> usize {
-        self.entries.iter().filter(|e| Filter::Completed.fit(e)).count()
+        self.data.entries
+            .iter()
+            .filter(|e| Filter::Completed.fit(e))
+            .count()
     }
 
     fn is_all_completed(&self) -> bool {
-        let mut filtered_iter = self.entries
+        let mut filtered_iter = self
+            .data.entries
             .iter()
-            .filter(|e| self.filter.fit(e))
+            .filter(|e| self.data.filter.fit(e))
             .peekable();
 
         if filtered_iter.peek().is_none() {
@@ -376,23 +397,26 @@ impl Model {
     }
 
     fn toggle_all(&mut self, value: bool) {
-        for entry in self.entries.iter_mut() {
-            if self.filter.fit(entry) {
+        for entry in self.data.entries.iter_mut() {
+            if self.data.filter.fit(entry) {
                 entry.completed = value;
             }
         }
     }
 
     fn clear_completed(&mut self) {
-        let entries = self.entries.drain(..)
+        let entries = self.data
+            .entries
+            .drain(..)
             .filter(|e| Filter::Active.fit(e))
             .collect();
-        self.entries = entries;
+        self.data.entries = entries;
     }
 
     fn toggle(&mut self, idx: usize) {
-        let filter = self.filter.clone();
-        let mut entries = self.entries
+        let filter = self.data.filter.clone();
+        let mut entries = self.
+            data.entries
             .iter_mut()
             .filter(|e| filter.fit(e))
             .collect::<Vec<_>>();
@@ -401,8 +425,9 @@ impl Model {
     }
 
     fn toggle_edit(&mut self, idx: usize) {
-        let filter = self.filter.clone();
-        let mut entries = self.entries
+        let filter = self.data.filter.clone();
+        let mut entries = self.data
+            .entries
             .iter_mut()
             .filter(|e| filter.fit(e))
             .collect::<Vec<_>>();
@@ -411,8 +436,9 @@ impl Model {
     }
 
     fn complete_edit(&mut self, idx: usize, val: String) {
-        let filter = self.filter.clone();
-        let mut entries = self.entries
+        let filter = self.data.filter.clone();
+        let mut entries = self.data
+            .entries
             .iter_mut()
             .filter(|e| filter.fit(e))
             .collect::<Vec<_>>();
@@ -423,8 +449,9 @@ impl Model {
 
     fn remove(&mut self, idx: usize) {
         let idx = {
-            let filter = self.filter.clone();
-            let entries = self.entries
+            let filter = self.data.filter.clone();
+            let entries = self.data
+                .entries
                 .iter()
                 .enumerate()
                 .filter(|&(_, e)| filter.fit(e))
@@ -432,6 +459,6 @@ impl Model {
             let &(idx, _) = entries.get(idx).unwrap();
             idx
         };
-        self.entries.remove(idx);
+        self.data.entries.remove(idx);
     }
 }
