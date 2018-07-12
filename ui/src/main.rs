@@ -16,25 +16,36 @@ extern crate yew;
 
 #[macro_use]
 extern crate stdweb;
+#[macro_use]
 extern crate failure;
 
 use std::time::Duration;
-use stdweb::web::window;
 
 use strum::IntoEnumIterator;
 
-use yew::format::Json;
+use yew::format::{Json, Nothing, Text};
 use yew::html::*;
 use yew::prelude::*;
 use yew::services::fetch::{FetchService, Request, Response, StatusCode};
 use yew::services::interval::IntervalService;
-use yew::services::storage::StorageService;
+use yew::services::storage::{Area, StorageService};
+
+mod backend;
+
+use backend::{BackendService, Entry};
 
 const KEY: &'static str = "yew.todomvc.self";
 
+fn main() {
+    yew::initialize();
+    // t-t-t-t-turboooofiissshh !!!!!!!!!!
+    App::<Model>::new().mount_to_body();
+    yew::run_loop();
+}
+
 struct Model {
     data: Data,
-    fetch: FetchService,
+    api: BackendService,
     storage: StorageService,
     link: ComponentLink<Model>,
 }
@@ -47,14 +58,7 @@ struct Data {
     edit_value: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
-struct Entry {
-    description: String,
-    completed: bool,
-    // When editing true, set "editing" class, also li becomes input field
-    editing: bool,
-}
-
+#[derive(Serialize, Deserialize)]
 enum Msg {
     Add,
     Edit(usize),
@@ -82,32 +86,29 @@ impl Component for Model {
         let handle = interval.spawn(Duration::from_secs(10), interval_cb);
 
         // fetch the canonical state from the server...
-        //let fetch_cb =
-        //    context.send_back(|resp: Response<Json<Result<Vec<Entry>, failure::Error>>>| {
-        //        let (meta, Json(result)) = resp.into_parts();
-        //        if meta.status.is_success() {
-        //            Msg::UpdateAll(result.expect("error retrieving result"))
-        //        } else {
-        //            js! { console.log("fetching all tasks failed") };
-        //            Msg::Nope
-        //        }
-        //    })
-        let storage = StorageService {
-            storage: window().local_storage(),
-        };
+        let fetch_cb = context.send_back(|resp: Response<Json<Result<String, failure::Error>>>| {
+            let (meta, Json(result)) = resp.into_parts();
+            if meta.status.is_success() {
+                let real_result: Vec<Entry> = serde_json::from_str(&result.unwrap()).unwrap();
+                Msg::UpdateAll(real_result)
+            } else {
+                js! { console.log("fetching all tasks failed") };
+                Msg::Nope
+            }
+        });
+        let mut storage = StorageService::new(Area::Local);
         let mut fetcher = FetchService::new();
-        //let req = Request::get("http://localhost:8000/tasks")
-        //    .body(None)
-        //    .unwrap();
+        let req = Request::get("http://localhost:8000/tasks")
+            .body(Nothing)
+            .unwrap();
 
-        //// can be canceled with Task::cancel()
-        //fetcher.fetch(req, fetch_cb);
+        fetcher.fetch(req, fetch_cb);
 
         // ...but load from local storage until we fire the callback
         if let Json(Ok(restored)) = storage.restore(KEY) {
             Model {
                 data: restored,
-                fetch: fetcher,
+                api: BackendService::new(),
                 storage: storage,
                 link: context,
             }
@@ -119,7 +120,7 @@ impl Component for Model {
                     value: "".into(),
                     edit_value: "".into(),
                 },
-                fetch: fetcher,
+                api: BackendService::new(),
                 storage: storage,
                 link: context,
             }
@@ -136,10 +137,12 @@ impl Component for Model {
                 };
                 self.data.entries.push(entry.clone());
                 self.data.value = "".to_string();
+                // trying strategy: https://github.com/DenisKolodin/yew/issues/179
+                // let emitter = self.link.send_back(function)a;
                 let cb = self.link.send_back(
                     move |resp: Response<Json<Result<String, failure::Error>>>| {
-                        let code: StatusCode = resp.status();
-                        if code.is_success() {
+                        let (meta, Json(body)) = resp.into_parts();
+                        if meta.status.is_success() {
                             println!("success");
                             Msg::Nope
                         } else {
@@ -148,12 +151,12 @@ impl Component for Model {
                         }
                     },
                 );
-                let body = serde_json::to_string(&entry).unwrap();
+                //let body = serde_json::to_string(&entry).unwrap();
                 let req = Request::post("http://localhost:8000/task")
                     .header("Content-Type", "application/json")
-                    .body(body)
+                    .body(&entry)
                     .expect("could not build request");
-                self.fetch.fetch(req, cb);
+                self.fetch_service.fetch(req, cb);
             }
             Msg::Edit(idx) => {
                 let edit_value = self.data.edit_value.clone();
@@ -163,7 +166,7 @@ impl Component for Model {
             Msg::Tick => {
                 let entries = self.data.entries.clone();
                 let cb = self.link.send_back(
-                    |resp: Response<Json<Result<String, failure::Error>>>| {
+                    move |resp: Response<Json<Result<serde_json::Value, failure::Error>>>| {
                         let code: StatusCode = resp.status();
                         if code.is_success() {
                             js! { console.log("sync success") };
@@ -176,9 +179,10 @@ impl Component for Model {
                 let body = serde_json::to_string(&entries).unwrap();
                 let req = Request::post("http://localhost:8000/tasks")
                     .header("Content-Type", "application/json")
-                    .body(body)
+                    .body(Json(json!(body)))
+                    //.body(body)
                     .expect("could not build request");
-                self.fetch.fetch(req, cb);
+                self.fetch_service.fetch(req, cb.into());
             }
             Msg::Update(val) => {
                 println!("Input: {}", val);
@@ -324,13 +328,6 @@ fn view_entry_edit_input((idx, entry): (usize, &Entry)) -> Html<Model> {
     }
 }
 
-fn main() {
-    yew::initialize();
-    // t-t-t-t-turboooofiissshh !!!!!!!!!!
-    App::<Model>::new().mount_to_body();
-    yew::run_loop();
-}
-
 pub struct TodoService {
     api: FetchService,
 }
@@ -376,7 +373,8 @@ impl Model {
     }
 
     fn total_completed(&self) -> usize {
-        self.data.entries
+        self.data
+            .entries
             .iter()
             .filter(|e| Filter::Completed.fit(e))
             .count()
@@ -384,7 +382,8 @@ impl Model {
 
     fn is_all_completed(&self) -> bool {
         let mut filtered_iter = self
-            .data.entries
+            .data
+            .entries
             .iter()
             .filter(|e| self.data.filter.fit(e))
             .peekable();
@@ -405,7 +404,8 @@ impl Model {
     }
 
     fn clear_completed(&mut self) {
-        let entries = self.data
+        let entries = self
+            .data
             .entries
             .drain(..)
             .filter(|e| Filter::Active.fit(e))
@@ -415,8 +415,9 @@ impl Model {
 
     fn toggle(&mut self, idx: usize) {
         let filter = self.data.filter.clone();
-        let mut entries = self.
-            data.entries
+        let mut entries = self
+            .data
+            .entries
             .iter_mut()
             .filter(|e| filter.fit(e))
             .collect::<Vec<_>>();
@@ -426,7 +427,8 @@ impl Model {
 
     fn toggle_edit(&mut self, idx: usize) {
         let filter = self.data.filter.clone();
-        let mut entries = self.data
+        let mut entries = self
+            .data
             .entries
             .iter_mut()
             .filter(|e| filter.fit(e))
@@ -437,7 +439,8 @@ impl Model {
 
     fn complete_edit(&mut self, idx: usize, val: String) {
         let filter = self.data.filter.clone();
-        let mut entries = self.data
+        let mut entries = self
+            .data
             .entries
             .iter_mut()
             .filter(|e| filter.fit(e))
@@ -450,7 +453,8 @@ impl Model {
     fn remove(&mut self, idx: usize) {
         let idx = {
             let filter = self.data.filter.clone();
-            let entries = self.data
+            let entries = self
+                .data
                 .entries
                 .iter()
                 .enumerate()
