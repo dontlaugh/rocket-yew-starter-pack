@@ -1,4 +1,4 @@
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 
 extern crate strum;
 #[macro_use]
@@ -8,16 +8,20 @@ extern crate serde_derive;
 #[macro_use]
 extern crate yew;
 
+use std::time::Duration;
+
 use strum::IntoEnumIterator;
-use yew::prelude::*;
 use yew::format::Json;
-use yew::services::storage::{StorageService, Area};
+use yew::prelude::*;
+use yew::services::storage::{Area, StorageService};
+use yew::services::{IntervalService, Task};
 
 const KEY: &'static str = "yew.todomvc.self";
 
 pub struct Model {
     storage: StorageService,
     state: State,
+    _ticker: Box<Task>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -47,14 +51,18 @@ pub enum Msg {
     Toggle(usize),
     ClearCompleted,
     Nope,
+    Tick,
 }
 
 impl Component for Model {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, _: ComponentLink<Self>) -> Self {
+    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let mut storage = StorageService::new(Area::Local);
+        let mut interval = IntervalService::new();
+        let cb = link.send_back(|_| Msg::Tick);
+        let handle = interval.spawn(Duration::from_secs(5), cb);
         let entries = {
             if let Json(Ok(restored_model)) = storage.restore(KEY) {
                 restored_model
@@ -68,7 +76,11 @@ impl Component for Model {
             value: "".into(),
             edit_value: "".into(),
         };
-        Model { storage, state }
+        Model {
+            storage: storage,
+            state: state,
+            _ticker: Box::new(handle),
+        }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
@@ -101,6 +113,7 @@ impl Component for Model {
             Msg::SetFilter(filter) => {
                 self.state.filter = filter;
             }
+            Msg::Tick => {}
             Msg::ToggleEdit(idx) => {
                 self.state.edit_value = self.state.entries[idx].description.clone();
                 self.state.toggle_edit(idx);
@@ -224,9 +237,7 @@ fn view_entry_edit_input((idx, entry): (usize, &Entry)) -> Html<Model> {
     }
 }
 
-
-#[derive(EnumIter, ToString, Clone, PartialEq)]
-#[derive(Serialize, Deserialize)]
+#[derive(EnumIter, ToString, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Filter {
     All,
     Active,
@@ -259,14 +270,18 @@ impl State {
     }
 
     fn total_completed(&self) -> usize {
-        self.entries.iter().filter(|e| Filter::Completed.fit(e)).count()
+        self.entries
+            .iter()
+            .filter(|e| Filter::Completed.fit(e))
+            .count()
     }
 
     fn is_all_completed(&self) -> bool {
-        let mut filtered_iter = self.entries
-                                    .iter()
-                                    .filter(|e| self.filter.fit(e))
-                                    .peekable();
+        let mut filtered_iter = self
+            .entries
+            .iter()
+            .filter(|e| self.filter.fit(e))
+            .peekable();
 
         if filtered_iter.peek().is_none() {
             return false;
@@ -284,7 +299,9 @@ impl State {
     }
 
     fn clear_completed(&mut self) {
-        let entries = self.entries.drain(..)
+        let entries = self
+            .entries
+            .drain(..)
             .filter(|e| Filter::Active.fit(e))
             .collect();
         self.entries = entries;
@@ -292,7 +309,8 @@ impl State {
 
     fn toggle(&mut self, idx: usize) {
         let filter = self.filter.clone();
-        let mut entries = self.entries
+        let mut entries = self
+            .entries
             .iter_mut()
             .filter(|e| filter.fit(e))
             .collect::<Vec<_>>();
@@ -302,7 +320,8 @@ impl State {
 
     fn toggle_edit(&mut self, idx: usize) {
         let filter = self.filter.clone();
-        let mut entries = self.entries
+        let mut entries = self
+            .entries
             .iter_mut()
             .filter(|e| filter.fit(e))
             .collect::<Vec<_>>();
@@ -312,7 +331,8 @@ impl State {
 
     fn complete_edit(&mut self, idx: usize, val: String) {
         let filter = self.filter.clone();
-        let mut entries = self.entries
+        let mut entries = self
+            .entries
             .iter_mut()
             .filter(|e| filter.fit(e))
             .collect::<Vec<_>>();
@@ -324,7 +344,8 @@ impl State {
     fn remove(&mut self, idx: usize) {
         let idx = {
             let filter = self.filter.clone();
-            let entries = self.entries
+            let entries = self
+                .entries
                 .iter()
                 .enumerate()
                 .filter(|&(_, e)| filter.fit(e))
@@ -335,4 +356,3 @@ impl State {
         self.entries.remove(idx);
     }
 }
-
