@@ -48,6 +48,7 @@ struct Model {
     api: BackendService,
     storage: StorageService,
     link: ComponentLink<Model>,
+    update_all_cb: Callback<>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
