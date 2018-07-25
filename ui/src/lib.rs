@@ -1,24 +1,30 @@
 #![recursion_limit = "128"]
-
 extern crate strum;
 #[macro_use]
 extern crate strum_macros;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
+extern crate serde_json;
+#[macro_use]
 extern crate yew;
+#[macro_use]
+extern crate failure;
 
+use failure::Error;
 use std::time::Duration;
-
 use strum::IntoEnumIterator;
 use yew::format::Json;
 use yew::prelude::*;
+use yew::services::fetch::{FetchService, Request, Response};
+use yew::services::interval::IntervalService;
 use yew::services::storage::{Area, StorageService};
-use yew::services::{IntervalService, Task};
+use yew::services::Task;
 
 const KEY: &'static str = "yew.todomvc.self";
 
 pub struct Model {
+    fetch: FetchService,
     storage: StorageService,
     state: State,
     _ticker: Box<Task>,
@@ -32,7 +38,7 @@ pub struct State {
     edit_value: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Entry {
     description: String,
     completed: bool,
@@ -70,6 +76,7 @@ impl Component for Model {
                 Vec::new()
             }
         };
+        let fetch = FetchService::new();
         let state = State {
             entries,
             filter: Filter::All,
@@ -77,8 +84,9 @@ impl Component for Model {
             edit_value: "".into(),
         };
         Model {
-            storage: storage,
-            state: state,
+            fetch,
+            storage,
+            state,
             _ticker: Box::new(handle),
         }
     }
@@ -113,7 +121,27 @@ impl Component for Model {
             Msg::SetFilter(filter) => {
                 self.state.filter = filter;
             }
-            Msg::Tick => {}
+            Msg::Tick => {
+                // make a callback (or box it and put it on our Model)
+                let url = format!("http://[::]:8000/tasks");
+                let handler = move |response: Response<Json<Result<(), Error>>>| {
+                    let (meta, _) = response.into_parts();
+                    if !meta.status.is_success() {
+                        // format_err! is a macro in crate `failure`
+                        // callback.emit(Err(format_err!(
+                        //     "{}: error getting profile https://gravatar.com/",
+                        //     meta.status
+                        // )))
+                    }
+                };
+                let entries = self.state.entries.clone();
+                let as_json = json!{ entries };
+                let request = Request::post(url.as_str())
+                    .header("Content-Type", "application/json")
+                    .body(Ok(as_json.to_string()))
+                    .unwrap();
+                self.fetch.fetch(request, handler.into());
+            }
             Msg::ToggleEdit(idx) => {
                 self.state.edit_value = self.state.entries[idx].description.clone();
                 self.state.toggle_edit(idx);

@@ -5,14 +5,15 @@ authors = ["Coleman McFarland <coleman.mcfarland@gmail.com>"]
 
 
 [dependencies]
-strum = "0.8.0"
-strum_macros = "0.8.0"
+strum = "0.10.0"
+strum_macros = "0.10.0"
 serde = "1"
 serde_derive = "1"
-serde_json = "*"
+serde_json = "1.0.24"
+#yew = "0.4.0" 
 yew = { git = "https://github.com/DenisKolodin/yew.git", branch = "master" }  
-stdweb = "0.4.2"
-failure = "*"
+stdweb = "0.4.8"
+failure = "0.1.1"
 
 
 [[bin]]

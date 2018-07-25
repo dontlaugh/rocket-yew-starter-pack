@@ -17,6 +17,9 @@ cp ui/target/wasm32-unknown-unknown/release/ui.wasm server/static/ui.wasm
 cp ui/static/styles.css server/static/styles.css
 
 (
+  echo "running server"
   cd server
-  cargo run
+  cargo run --release
 )
+
+
