@@ -1,18 +1,18 @@
 [package]
 name = "server"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Coleman McFarland <coleman.mcfarland@gmail.com>"]
 
 [dependencies]
-bincode = "*"
-sled = "*" 
-rocket = "*"
-rocket_codegen = "*"
-rocket_contrib = "*"
-serde_derive = "*"
-serde_json = "*"
-serde = "*"
-tempdir = "*"
+bincode = "1.0.1"
+sled = "0.15.17" 
+rocket = "0.3.15"
+rocket_codegen = "0.3.15"
+rocket_contrib = "0.3.15"
+serde_derive = "1.0.70"
+serde_json = "1.0.24"
+serde = "1.0.70"
+tempdir = "0.3.7"
 
 [dependencies.maud]
 branch = "master"

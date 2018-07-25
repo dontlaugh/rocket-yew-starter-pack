@@ -5,33 +5,33 @@
 #![allow(unused_imports)]
 #![allow(unused_must_use)]
 #![allow(dead_code)]
-#![feature(proc_macro)]
 #![feature(proc_macro_non_items)]
+#![feature(use_extern_macros)]
 
 extern crate bincode;
+extern crate maud;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate sled;
-extern crate maud;
 extern crate tempdir;
 
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_json;
 extern crate serde;
+extern crate serde_json;
 
-use std::sync::{Arc, Mutex};
+use serde::Serialize;
 use std::path::{Path, PathBuf};
-use serde::{Serialize};
+use std::sync::{Arc, Mutex};
 
 use bincode::{deserialize, serialize};
+#[macro_use]
 use maud::{html, Markup};
-use rocket::State;
 use rocket::response::status;
 use rocket::response::NamedFile;
+use rocket::State;
 use rocket_contrib::Json;
 use sled::{ConfigBuilder, Tree};
-
 
 fn main() {
     let path = String::from("data.db");
@@ -44,7 +44,15 @@ fn main() {
 }
 
 fn all_routes() -> Vec<rocket::Route> {
-    routes![index, static_file, ugly_hack, create_task, get_task, get_tasks, update_all_tasks]
+    routes![
+        index,
+        static_file,
+        ugly_hack,
+        create_task,
+        get_task,
+        get_tasks,
+        update_all_tasks
+    ]
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -58,7 +66,7 @@ struct Task {
 #[get("/")]
 fn index(db: State<Arc<sled::Tree>>) -> Markup {
     // maud macro
-    html! { 
+    html! {
         link rel="stylesheet" href="static/styles.css" {}
         body {}
         // yew-generated javascript attaches to <body>
@@ -72,7 +80,7 @@ fn static_file(path: PathBuf) -> Option<NamedFile> {
     NamedFile::open(Path::new("static/").join(path)).ok()
 }
 
-// TODO: remove this when we figure out how to change the native Rust 
+// TODO: remove this when we figure out how to change the native Rust
 // WebAssembly's generated JavaScript code to point at "static/" prefix.
 #[get("/ui.wasm")]
 fn ugly_hack() -> Option<NamedFile> {
@@ -104,7 +112,6 @@ fn create_task(db: State<Arc<sled::Tree>>, task: Json<Task>) -> status::Accepted
 /// Return all tasks or an empty Vec, which is valid.
 #[get("/tasks")]
 fn get_tasks(db: State<Arc<sled::Tree>>) -> Json<Vec<Task>> {
-
     let mut results: Vec<Task> = Vec::new();
 
     for item in db.iter() {
@@ -113,7 +120,7 @@ fn get_tasks(db: State<Arc<sled::Tree>>) -> Json<Vec<Task>> {
                 let decoded: Task = deserialize(&v[..]).expect("could not deserialize Task");
                 results.push(decoded);
             }
-            _ => {},
+            _ => {}
         }
     }
 
@@ -122,17 +129,19 @@ fn get_tasks(db: State<Arc<sled::Tree>>) -> Json<Vec<Task>> {
 
 /// Update all tasks.
 #[post("/tasks", format = "application/json", data = "<tasks>")]
-fn update_all_tasks(db: State<Arc<sled::Tree>>, tasks: Json<Vec<Task>>) -> status::Accepted<String> {
-
+fn update_all_tasks(
+    db: State<Arc<sled::Tree>>,
+    tasks: Json<Vec<Task>>,
+) -> status::Accepted<String> {
     // get len
     let mut count = 0;
     for item in db.iter() {
         match item {
             Ok(_) => count += 1,
-            _ => {},
+            _ => {}
         }
     }
-    
+
     // delete everything
     for k in 0..count {
         db.del(&vec![k as u8]).expect("delete failed");
@@ -148,33 +157,28 @@ fn update_all_tasks(db: State<Arc<sled::Tree>>, tasks: Json<Vec<Task>>) -> statu
     status::Accepted(Some(format!("success")))
 }
 
-
 /// Get a task by id.
 #[get("/task/<id>")]
 fn get_task(db: State<Arc<sled::Tree>>, id: u8) -> Option<Json<Task>> {
-
     let val = db.get(&vec![id]);
     match val {
         Ok(Some(db_vec)) => {
-            let decoded: Task = deserialize(&db_vec[..])
-                .expect("unable to decode Task");
+            let decoded: Task = deserialize(&db_vec[..]).expect("unable to decode Task");
             Some(Json(decoded))
         }
-        _ => None
+        _ => None,
     }
 }
 
 /// Update a task by id.
 #[put("/task/<id>", format = "application/json", data = "<task>")]
 fn update_task(db: State<Arc<sled::Tree>>, id: u8, task: Json<Task>) -> status::Accepted<String> {
-
     let key = vec![id];
     let encoded: Vec<u8> = serialize(&task.0).unwrap();
     db.cas(key, None, Some(encoded));
 
     status::Accepted(Some(format!("format")))
 }
-
 
 /// Create an instance of Rocket suitable for tests.
 fn test_instance(db_path: PathBuf) -> rocket::Rocket {
@@ -188,18 +192,19 @@ fn test_instance(db_path: PathBuf) -> rocket::Rocket {
 
 #[test]
 fn test_post_get() {
-    use tempdir::TempDir;
-    use rocket::local::Client;
     use rocket::http::{ContentType, Status};
+    use rocket::local::Client;
+    use tempdir::TempDir;
 
     let dir = TempDir::new("rocket").unwrap();
     let path = dir.path().join("test_data.db");
-    
+
     // create our test client
     let c = Client::new(test_instance(path)).unwrap();
 
     // create a new task with raw json string body
-    let req = c.post("/task")
+    let req = c
+        .post("/task")
         .body(r#"{"completed": false, "description": "foo", "editing": false}"#)
         .header(ContentType::JSON);
     let resp = req.dispatch();
@@ -207,19 +212,24 @@ fn test_post_get() {
 
     let req = c.get("/task/0");
     let bod = req.dispatch().body_bytes().unwrap();
-    let decoded: Task = serde_json::from_slice(&bod[..]).expect("not a valid task; if your model has changed, try deleting your database file");
+    let decoded: Task = serde_json::from_slice(&bod[..])
+        .expect("not a valid task; if your model has changed, try deleting your database file");
     assert_eq!(&decoded.description, "foo");
 
-
-    // create another task with serde_json's ability to serialize our Task
-    let task = Task{ description: String::from("baz"), completed: true, editing: false };
-    let req = c.post("/task")
+    // create another Task and let serde_json handle serialization
+    let task = Task {
+        description: String::from("baz"),
+        completed: true,
+        editing: false,
+    };
+    let req = c
+        .post("/task")
         .body(serde_json::to_vec(&task).unwrap())
         .header(ContentType::JSON);
     let resp = req.dispatch();
     assert_eq!(resp.status(), Status::Accepted);
 
-    // we expect our next task to have id 1 
+    // we expect our next task to have id 1
     let req = c.get("/task/1");
     let bod = req.dispatch().body_bytes().unwrap();
     let decoded: Task = serde_json::from_slice(&bod[..]).expect("not a valid task");
