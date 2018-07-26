@@ -10,13 +10,15 @@ extern crate serde_json;
 extern crate yew;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate stdweb;
 
 use failure::Error;
 use std::time::Duration;
 use strum::IntoEnumIterator;
-use yew::format::Json;
+use yew::format::{Json, Nothing};
 use yew::prelude::*;
-use yew::services::fetch::{FetchService, Request, Response};
+use yew::services::fetch::{FetchService, FetchTask, Request, Response};
 use yew::services::interval::IntervalService;
 use yew::services::storage::{Area, StorageService};
 use yew::services::Task;
@@ -28,6 +30,7 @@ pub struct Model {
     storage: StorageService,
     state: State,
     _ticker: Box<Task>,
+    gotten: Option<FetchTask>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -38,8 +41,8 @@ pub struct State {
     edit_value: String,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-struct Entry {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Entry {
     description: String,
     completed: bool,
     editing: bool,
@@ -47,7 +50,9 @@ struct Entry {
 
 pub enum Msg {
     Add,
+    ClearCompleted,
     Edit(usize),
+    InitialSync(Vec<Entry>),
     Update(String),
     UpdateEdit(String),
     Remove(usize),
@@ -55,7 +60,6 @@ pub enum Msg {
     ToggleAll,
     ToggleEdit(usize),
     Toggle(usize),
-    ClearCompleted,
     Nope,
     Tick,
 }
@@ -64,11 +68,14 @@ impl Component for Model {
     type Message = Msg;
     type Properties = ();
 
+    // set up and Box all the required callbacks, initialize services (some of
+    // which we can pass cloned callbacks to in the event loop)
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let mut storage = StorageService::new(Area::Local);
         let mut interval = IntervalService::new();
         let cb = link.send_back(|_| Msg::Tick);
         let handle = interval.spawn(Duration::from_secs(5), cb);
+        let mut fetch = FetchService::new();
         let entries = {
             if let Json(Ok(restored_model)) = storage.restore(KEY) {
                 restored_model
@@ -76,7 +83,42 @@ impl Component for Model {
                 Vec::new()
             }
         };
-        let fetch = FetchService::new();
+
+        // The full signature of the send_back method on ComponentLink
+        //
+        //  impl<COMP> ComponentLink<COMP>
+        //  where
+        //      COMP: Component + Renderable<COMP>,
+        //
+        //       ... 
+        //
+        //       pub fn send_back<F, IN>(&self, function: F) -> Callback<IN>
+        //       where
+        //           F: Fn(IN) -> COMP::Message + 'static,
+        //
+        //       ...
+        //
+        // We need a separate callback for each of the different Msg types that
+        // could be yielded from initial_sync_cb
+        //
+        // TODO: This is corny. Make this nicer.
+        let emitter = link.send_back(Msg::InitialSync);
+        let emitter2 = link.send_back(|_| Msg::Nope);
+
+        let url = format!("http://[::]:8000/tasks");
+        let request = Request::get(url.as_str()).body(Nothing).unwrap();
+        let initial_sync_cb = link.send_back(move |resp: Response<Json<Result<Vec<Entry>, Error>>>| {
+            let (meta, Json(data)) = resp.into_parts();
+            if meta.status.is_success() {
+                console!(log, format!("got data from server: {:?}", data));
+                emitter.emit(data.expect("error response from GET /tasks"))
+            } else {
+                console!(log, "initial sync failed");
+                emitter2.emit(Msg::Nope)
+            }
+            Msg::Nope
+        }); 
+        let task = Some(fetch.fetch(request, initial_sync_cb));
         let state = State {
             entries,
             filter: Filter::All,
@@ -88,6 +130,9 @@ impl Component for Model {
             storage,
             state,
             _ticker: Box::new(handle),
+            // we have to move this into our struct to prevent it from being
+            // dropped
+            gotten: task,
         }
     }
 
@@ -107,6 +152,10 @@ impl Component for Model {
                 self.state.complete_edit(idx, edit_value);
                 self.state.edit_value = "".to_string();
             }
+            Msg::InitialSync(data) => {
+                console!(log, "got data from server: ");
+                self.state.entries = data;
+            },
             Msg::Update(val) => {
                 println!("Input: {}", val);
                 self.state.value = val;
@@ -122,6 +171,7 @@ impl Component for Model {
                 self.state.filter = filter;
             }
             Msg::Tick => {
+                console!(log, "tock");
                 // make a callback (or box it and put it on our Model)
                 let url = format!("http://[::]:8000/tasks");
                 let handler = move |response: Response<Json<Result<(), Error>>>| {
