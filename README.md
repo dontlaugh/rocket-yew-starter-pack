@@ -53,6 +53,9 @@ This project also uses:
 
 ----
 
+**NOTE:** Currently we are building and installing `cargo-web` from the git 
+master branch. 
+
 **NOTE:** This is a work in progress, but it should build, run and let you get
 started. These libraries are moving fast, so if anything is broken feel free to
 open an issue or a PR.
