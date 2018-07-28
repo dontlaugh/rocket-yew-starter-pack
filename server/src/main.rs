@@ -23,7 +23,6 @@ extern crate serde_json;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-
 use bincode::{deserialize, serialize};
 #[macro_use]
 use maud::{html, Markup};
@@ -37,7 +36,6 @@ fn main() {
     let path = String::from("data.db");
     let conf = sled::ConfigBuilder::new().path(path).build();
     let tree = Tree::start(conf).unwrap();
-
     let db_arc = Arc::new(tree);
     let routes = all_routes();
     rocket::ignite().mount("/", routes).manage(db_arc).launch();
@@ -127,12 +125,13 @@ fn get_tasks(db: State<Arc<sled::Tree>>) -> Json<Vec<Task>> {
     Json(results)
 }
 
-/// Update all tasks.
+/// Update all tasks with a Vec<Task>.
 #[post("/tasks", format = "application/json", data = "<tasks>")]
 fn update_all_tasks(
     db: State<Arc<sled::Tree>>,
     tasks: Json<Vec<Task>>,
 ) -> status::Accepted<String> {
+
     // get len
     let mut count = 0;
     for item in db.iter() {
