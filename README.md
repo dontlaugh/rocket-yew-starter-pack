@@ -27,7 +27,9 @@ Build both `ui` and `server` on your current platform
 ./build.sh
 ```
 
-Or, build `ui` and copy the outputs over to `server` to run locally
+Or, build `ui` and copy the outputs over to `server` to run locally. Notes that
+avoiding CORS issues means accessing the localhost server with an ipv6-style 
+address, e.g. on http://[::]:8000
 
 ```
 ./run-local.sh
