@@ -70,7 +70,7 @@ impl Component for Model {
 
     // set up and Box all the required callbacks, initialize services (some of
     // which we can pass cloned callbacks to in the event loop)
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_: Self::Properties, mut link: ComponentLink<Self>) -> Self {
         let mut storage = StorageService::new(Area::Local);
         let mut interval = IntervalService::new();
         let cb = link.send_back(|_| Msg::Tick);
