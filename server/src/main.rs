@@ -1,16 +1,14 @@
 #![feature(plugin)]
-#![plugin(rocket_codegen)]
 #![allow(unused_variables)]
 #![allow(unused_mut)]
 #![allow(unused_imports)]
 #![allow(unused_must_use)]
 #![allow(dead_code)]
-#![feature(proc_macro_non_items)]
-#![feature(use_extern_macros)]
+#![feature(proc_macro_hygiene, decl_macro)]
 
+#[macro_use] extern crate rocket;
 extern crate bincode;
 extern crate maud;
-extern crate rocket;
 extern crate rocket_contrib;
 extern crate sled;
 extern crate tempdir;
@@ -24,12 +22,11 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use bincode::{deserialize, serialize};
-#[macro_use]
 use maud::{html, Markup};
 use rocket::response::status;
 use rocket::response::NamedFile;
 use rocket::State;
-use rocket_contrib::Json;
+use rocket_contrib::json::Json;
 use sled::{ConfigBuilder, Tree};
 
 fn main() {
