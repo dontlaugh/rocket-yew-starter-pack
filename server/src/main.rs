@@ -6,17 +6,11 @@
 #![allow(dead_code)]
 #![feature(proc_macro_hygiene, decl_macro)]
 
-#[macro_use] extern crate rocket;
-extern crate bincode;
-extern crate maud;
-extern crate rocket_contrib;
-extern crate sled;
-extern crate tempdir;
 
 #[macro_use]
+extern crate rocket;
+#[macro_use]
 extern crate serde_derive;
-extern crate serde;
-extern crate serde_json;
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};

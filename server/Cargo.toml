@@ -2,6 +2,7 @@
 name = "server"
 version = "0.2.1"
 authors = ["Coleman McFarland <coleman.mcfarland@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 bincode = "1.1.4"
