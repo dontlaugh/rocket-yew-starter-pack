@@ -5,7 +5,7 @@ authors = ["Coleman McFarland <coleman.mcfarland@gmail.com>"]
 
 [dependencies]
 bincode = "1.1.4"
-sled = "0.15.17" 
+sled = "0.24.1"
 rocket = "0.4.2"
 rocket_codegen = "0.4.2"
 rocket_contrib = "0.4.2"

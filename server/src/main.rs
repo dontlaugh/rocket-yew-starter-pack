@@ -6,7 +6,8 @@
 #![allow(dead_code)]
 #![feature(proc_macro_hygiene, decl_macro)]
 
-#[macro_use] extern crate rocket;
+#[macro_use]
+extern crate rocket;
 extern crate bincode;
 extern crate maud;
 extern crate rocket_contrib;
@@ -18,22 +19,22 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
-use serde::Serialize;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use bincode::{deserialize, serialize};
 use maud::{html, Markup};
 use rocket::response::status;
 use rocket::response::NamedFile;
 use rocket::State;
 use rocket_contrib::json::Json;
-use sled::{ConfigBuilder, Tree};
+use serde::Serialize;
+use sled::{ConfigBuilder, Db, Tree};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 fn main() {
     let path = String::from("data.db");
     let conf = sled::ConfigBuilder::new().path(path).build();
-    let tree = Tree::start(conf).unwrap();
-    let db_arc = Arc::new(tree);
+    let db = Db::start(conf).unwrap();
+    let db_arc = Arc::new(db);
     let routes = all_routes();
     rocket::ignite().mount("/", routes).manage(db_arc).launch();
 }
@@ -128,7 +129,6 @@ fn update_all_tasks(
     db: State<Arc<sled::Tree>>,
     tasks: Json<Vec<Task>>,
 ) -> status::Accepted<String> {
-
     // get len
     let mut count = 0;
     for item in db.iter() {
@@ -168,10 +168,10 @@ fn get_task(db: State<Arc<sled::Tree>>, id: u8) -> Option<Json<Task>> {
 
 /// Update a task by id.
 #[put("/task/<id>", format = "application/json", data = "<task>")]
-fn update_task(db: State<Arc<sled::Tree>>, id: u8, task: Json<Task>) -> status::Accepted<String> {
+fn update_task(db: State<Arc<sled::Db>>, id: u8, task: Json<Task>) -> status::Accepted<String> {
     let key = vec![id];
     let encoded: Vec<u8> = serialize(&task.0).unwrap();
-    db.cas(key, None, Some(encoded));
+    db.cas::<Vec<u8>, Vec<u8>, Vec<u8>>(key, None, Some(encoded));
 
     status::Accepted(Some(format!("format")))
 }
@@ -181,7 +181,7 @@ fn test_instance(db_path: PathBuf) -> rocket::Rocket {
     let conf = sled::ConfigBuilder::new()
         .path(String::from(db_path.to_str().unwrap()))
         .build();
-    let tree = Tree::start(conf).unwrap();
+    let tree = Db::start(conf).unwrap();
     let db_arc = Arc::new(tree);
     rocket::ignite().mount("/", all_routes()).manage(db_arc)
 }
