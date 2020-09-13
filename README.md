@@ -1,3 +1,20 @@
+Note: this repository is archived. I sketched it out at the time because nothing like it existed and I wanted to scratch an itch. 
+But now Yew has come a really long way, and keeping up with all the changes + maintaining a backend, however minimal, is just not 
+something that interests me anymore. It's irresponsible for me to have this be a "most stars" hit when people search for Yew, when 
+it will usually be busted and out of date. Better stuff exists. [Start with the official docs](https://yew.rs/docs/en/intro/)
+
+It can still serve as an example for what I'd consider to be a basic repo layout, but you'll have to rewrite most of the 
+internals.
+
+The front-end rust web development space is still evolving, but has already benefitted from the (frankly incredible) work of
+so many trailblazers.
+
+The next version of this repo needs to be written by someone new, scratching their own itch. Go do radical shit.
+
+Love, Coleman
+
+---
+
 # Rocket/Yew Starter Pack
 
 [Rocket](https://rocket.rs) is a framework for building web servers in Rust, 
@@ -50,10 +67,3 @@ This project also uses:
 * [sled](https://github.com/spacejam/sled) - an embedded, ordered key-value store 
 * [bincode](https://github.com/TyOverby/bincode) - binary encoding for rust types, so we can put
    stuff in a sled tree
-
-----
-
-**NOTE:** This is a work in progress, but it should build, run and let you get
-started. These libraries are moving fast, so if anything is broken feel free to
-open an issue or a PR.
-
